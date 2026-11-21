@@ -1980,11 +1980,14 @@ function renderCine() {
     const T = tchList();
     $("ccount").textContent = T.length + " tocchi";
     $("clist").innerHTML = T.map((w, i) => '<div class="ci' + (w === sel ? " on" : "") + '" data-i="' + i + '"><span class="n">' + (i + 1) + '</span><span class="mut">' + fmt(w.tch.t) +
-      '</span><span class="tl">' + esc(tchLabel(w)) + '</span><button class="sm" data-a="at" title="Video fermo all\'istante del tocco (per la foto)">&#9208;</button></div>').join("");
+      '</span><span class="tl">' + esc(tchLabel(w)) + '</span><button class="sm" data-a="at" title="Video fermo all\'istante del tocco (per la foto)">&#9208;</button>' +
+      (LIVE && LIVE.ev[w.tch.ev] ? '<button class="sm" data-a="ed" title="Correggi il tocco: giocatrice, fondamentale, voto, istante, zone">&#9998;</button>' : "") + "</div>").join("");
     $("clist").querySelectorAll(".ci").forEach(el => {
       const w = T[+el.dataset.i];
       el.onclick = e => { if (e.target.closest("button")) return; playClip(w); };
-      el.querySelector("button").onclick = () => { sel = w; v.pause(); seek(w.tch.t); renderCine(); };
+      el.querySelector('button[data-a="at"]').onclick = () => { sel = w; v.pause(); seek(w.tch.t); renderCine(); };
+      const ed = el.querySelector('button[data-a="ed"]');
+      if (ed) ed.onclick = () => { sel = w; v.pause(); openEvDlg(w.tch.ev); };
     });
     const on = $("clist").querySelector(".ci.on"); if (on) on.scrollIntoView({ block: "nearest" });
     syncBar();
@@ -3357,6 +3360,7 @@ $("leok").onclick = () => {
   else if (e.k === "rot") e.d = +$("led").value;
   if (e.t !== e0.t) { delete e.est; const d = Math.round((e.t - e0.t) * 100) / 100; svNote = shiftNote(shiftEst(leIdx, d), d); }
   LIVE.ev[leIdx] = e; $("ledlg").close(); SEL = leIdx; seek(e.t); v.pause(); liveChanged();
+  if (cine && tchMode()) { sel = tchList().find(w => w.tch.ev === leIdx) || sel; renderCine(); }   // vista cinema: resta sul tocco corretto
 };
 function afterPoint(e) {
   if (LR.phase === "setup") { v.pause(); setTimeout(openSetDlg, 50); return; }
@@ -3994,7 +3998,7 @@ $("lsanok").onclick = () => {
 document.addEventListener("keydown", e => {
   if (CAL && e.key === "Escape") { e.preventDefault(); calEnd(false); return; }
   if (svKey(e)) return;
-  if ($("zdlg").open) return;
+  if ($("zdlg").open || $("ledlg").open) return;
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "checkbox") return;
   const k = e.key.toLowerCase(), all = SCOUT && fltOn() ? sorted().filter(isVisible) : sorted(), i = all.indexOf(sel);
   // nella vista Scout restano solo i tasti del video (le lettere sono dello scout)
