@@ -2150,9 +2150,16 @@ $("sfile").onchange = $("sfiled").onchange = async e => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
   let s;
-  try { s = await ScoutLib.loadScoutFile(await f.arrayBuffer()); }
+  const buf = await f.arrayBuffer();
+  try { s = await ScoutLib.loadScoutFile(buf); }
   catch (err) { alert("Non riesco a leggere lo scout: " + err.message); return; }
   s.file = f.name;
+  if (LIVE && LRF && LRF.plist.length && !useImp() && /\.dvw$/i.test(f.name) &&
+      confirm("Questa partita ha gia' lo scout fatto nella pagina.\n\nOK = completa lo scout della pagina con " + f.name + ": quello che hai gia' fatto resta com'e', dal file si aggiungono i punti che vengono dopo, da timbrare nella vista Scout (lo scout di prima resta conservato nel file)\nAnnulla = non convertire")) {
+    SCOUT_IMP = s; R.forEach(r => { delete r.sp2; delete r.spm2; });
+    convertDvw(new TextDecoder("windows-1252").decode(buf), f.name);
+    return;
+  }
   if (LIVE && LRF && LRF.plist.length && !useImp()) {      // c'e' lo scout fatto nella pagina: si sceglie quale usare
     const use = confirm("Questa partita ha gia' lo scout fatto nella pagina.\n\nOK = usa lo scout " + f.name + " per clip, filtri e tocchi\nAnnulla = resta in uso quello fatto nella pagina (" + f.name + " si conserva nel file)\n\nSi puo' cambiare quando vuoi con \"Scout in uso\". Lo scout fatto nella pagina non viene toccato.");
     R.forEach(r => { delete r.sp2; delete r.spm2; });          // abbinamenti del vecchio scout importato: non valgono piu'
@@ -3876,24 +3883,66 @@ function openMatchDlg(first) {
 $("lmadd").onclick = () => { const r = lmRead(); r.push({}); lmRows(r); };
 $("lmdvw").onclick = () => $("lmfile").click();
 $("lmconv").onclick = () => $("lmcfile").click();
-$("lmcfile").onchange = async e => {
-  const f = e.target.files[0]; e.target.value = "";
-  if (!f) return;
-  let doc, S;
+// istanti gia' timbrati dello scout della pagina riportati sullo scout convertito: stesso set, stesso punteggio, stesso
+// posto nel punto, stessa giocatrice e fondamentale. Anche l'inizio di ogni set (in ordine).
+function carryTimes(doc, old) {
+  const keyed = L => { const m = new Map(), cnt = {};
+    for (const t of L.touchList) { if (t.numero === null || t.ev === undefined) continue; const p = t.set + ":" + t.loc + ":" + t.osp; cnt[p] = (cnt[p] || 0) + 1; m.set(p + ":" + cnt[p], t); }
+    return m; };
+  const A = keyed(LV.replay(old)), B = keyed(LV.replay(doc));
+  let n = 0;
+  for (const [k, t] of B) {
+    const o = A.get(k), eo = o && old.ev[o.ev], en = doc.ev[t.ev];
+    if (!eo || eo.est || !en || eo.k !== "t" || eo.n !== en.n || eo.s !== en.s) continue;
+    en.t = eo.t; delete en.est; n++;
+  }
+  const so = old.ev.filter(e => e.k === "set"), sn = doc.ev.filter(e => e.k === "set");
+  sn.forEach((e, i) => { if (so[i]) e.t = so[i].t; });
+  const had = old.ev.filter(e => e.k === "t" && !e.est).length;
+  return { n, had };
+}
+function convertDvw(text, fname) {
+  let doc;
   try {
-    const text = new TextDecoder("windows-1252").decode(await f.arrayBuffer());
-    S = ScoutLib.loadDvw(text);
+    const S = ScoutLib.loadDvw(text);
     // clip di ogni punto: l'abbinamento dello scout gia' caricato se ha gli stessi punti, se no quello in ordine
     let clips = R;
     if (!(SCOUT && SCOUT.points.length === S.points.length)) { clips = R.map(r => Object.assign({}, r)); ScoutLib.autoMatch(clips, S.points, D.min_clip_s || 0.5); }
     const by = new Map(clips.filter(r => r.sp).map(r => [r.sp, r]));
-    doc = LV.fromDvw(text, i => { const r = by.get(i + 1); return r ? [r.start, r.end] : null; }, f.name.replace(/\.dvw$/i, "").replace(/\s*\(.*\)\s*$/, ""));
-  } catch (err) { alert("Non riesco a convertire lo scout: " + err.message); return; }
-  if (LIVE && LIVE.ev.length && !confirm("Questa partita ha gia' uno scout fatto nella pagina (" + LIVE.ev.length + " inserimenti). Sostituirlo con lo scout convertito?")) return;
+    doc = LV.fromDvw(text, i => { const r = by.get(i + 1); return r ? [r.start, r.end] : null; }, fname.replace(/\.dvw$/i, "").replace(/\s*\(.*\)\s*$/, ""));
+  } catch (err) { alert("Non riesco a convertire lo scout: " + err.message); return false; }
+  let carried = null, merged = null;
+  if (LIVE && LIVE.ev.length) {
+    const old = JSON.parse(JSON.stringify(LIVE)); delete old.prev; delete old.useImp;
+    const A = LV.replay(old), last = A.plist[A.plist.length - 1];
+    if (last) {
+      // lo scout della pagina resta com'e' fino al suo ultimo punto; dal file si aggiunge cio' che viene dopo la clip di
+      // quel punto (il confine si cerca nel video, non nel punteggio: i due scout possono contare i punti diversamente)
+      const c = kept().find(r => last.t0 >= r.start - 1 && last.t0 <= r.end + 1), cutT = c ? c.end : last.t;
+      const B = LV.replay(doc), k = B.plist.findIndex(q => q.t0 > cutT + 0.01);
+      const j0 = k < 0 ? doc.ev.length : k === 0 ? 0 : B.plist[k - 1].ei + 1;
+      const add = doc.ev.slice(j0), nums = new Set(old.roster.map(p => p.n));
+      doc = Object.assign({}, old, { ev: old.ev.slice(0, last.ei + 1).concat(add), roster: old.roster.concat(doc.roster.filter(p => !nums.has(p.n))) });
+      merged = { set: last.set, loc: last.loc, osp: last.osp, t: last.t0, n: add.filter(e => e.k === "t").length, from: k < 0 ? null : B.plist[k] };
+    } else carried = carryTimes(doc, old);
+    doc.prev = old;                                            // lo scout di prima resta nel file (meta.live.prev)
+  }
   LIVE = doc; SEL = INS = null; STAMP = false;
   $("lmdlg").close(); liveChanged(); if (!svOn) setSv(true);
-  svNote = "Scout convertito da " + f.name + ": " + stampLeft() + " tocchi con istante stimato. Premi Timbra gli istanti per assegnare a ognuno il suo." + (LR.issues.length ? " Ci sono " + LR.issues.length + " avvisi da controllare." : "");
+  svNote = (merged ? "Scout della pagina tenuto com'era fino al suo ultimo punto (set " + merged.set + " " + merged.loc + "-" + merged.osp + ", " + fmt(merged.t) + "); dal file " + fname + " aggiunto il resto: " +
+      (merged.from ? merged.n + " tocchi, a partire dal punto che nel file e' set " + merged.from.set + " " + merged.from.loc + "-" + merged.from.osp + ". " : "niente, il file non va oltre. ") +
+      "Lo scout di prima e' conservato nel file. " :
+    "Scout convertito da " + fname + ": " + (carried ? carried.n + " tocchi hanno preso l'istante gia' timbrato; " : "")) +
+    stampLeft() + " tocchi con istante stimato. Premi Timbra gli istanti per assegnare a ognuno il suo." + (LR.issues.length ? " Ci sono " + LR.issues.length + " avvisi da controllare." : "");
   svRender();
+  return true;
+}
+$("lmcfile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  const text = new TextDecoder("windows-1252").decode(await f.arrayBuffer());
+  if (LIVE && LIVE.ev.length && !confirm("Questa partita ha gia' uno scout fatto nella pagina (" + LIVE.ev.length + " inserimenti). Completarlo con " + f.name + "?\n\nQuello che hai gia' fatto resta com'e'; dal file si aggiungono i punti che vengono dopo il tuo ultimo punto. Lo scout di prima resta conservato nel file.")) return;
+  convertDvw(text, f.name);
 };
 $("lmfile").onchange = async e => {
   const f = e.target.files[0]; e.target.value = "";
