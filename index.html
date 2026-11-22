@@ -429,6 +429,7 @@ button.on{outline:2px solid var(--acc)}
   <label>Nome del video: <input type="text" id="dname" value="minivideo"></label>
   <label><input type="radio" name="dm" value="fast" checked> veloce: copia diretta, pochi secondi (la clip puo' iniziare fino a ~1 s prima, a seconda dei fotogrammi chiave del video)</label>
   <label><input type="radio" name="dm" value="precise"> precisa: ricodifica, tagli esatti al fotogramma ma molto piu' lenta (circa 0,4 s per ogni secondo di video)</label>
+  <label><input type="radio" name="dm" value="phone"> smartphone / WhatsApp: come la precisa, ma a 720p e circa 2,4 Mbit/s (un minuto ~18 MB). Su WhatsApp i video oltre ~2-3 minuti conviene mandarli come documento, cosi' non vengono ricompressi</label>
   <div class="row"><button class="pri" id="dmake">Scarica i file</button><button id="dcopy">Copia il comando</button><button id="dclose">Chiudi</button></div>
   <p class="mut">Vengono scaricati <b>nome.json</b> (la selezione) e <b>nome.bat</b>. Mettili nella stessa cartella e
     fai doppio clic su nome.bat: il minivideo compare in export/minivideo/<nome>/ nella cartella della partita. Il video principale non viene toccato. Se la pagina e' quella online serve la variabile di ambiente <b>VOLLEYCUT</b> (cartella che contiene volley_cut.py); il .bat funziona anche dentro la sottocartella export.</p>
