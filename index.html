@@ -3087,7 +3087,7 @@ function useSync() {
   $("suse").value = useImp() ? "imp" : "live";
 }
 $("suse").onchange = e => setScoutUse(e.target.value === "imp");
-function liveChanged() { liveRefresh(); store.save(); markDirty(true); svRender(); useSync(); }
+function liveChanged() { liveRefresh(); store.save(); markDirty(true); svRender(); useSync(); scoutBar(); }   // scoutBar: filtri (etichette nuove comprese) col nuovo scout
 function liveToScout() {
   if (useImp()) { if (SCOUT !== SCOUT_IMP) { SCOUT = SCOUT_IMP; refreshMatch(); } return; }
   if (!LIVE || !LRF || !LRF.plist.length) { if (SCOUT && SCOUT.live) { SCOUT = SCOUT_IMP; refreshMatch(); } return; }
