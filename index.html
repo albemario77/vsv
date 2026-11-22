@@ -217,6 +217,8 @@ button.on{outline:2px solid var(--acc)}
         <button id="snap" title="Salva come immagine il fotogramma attuale del video (F)">Foto</button>
         <button id="scout" title="Carica lo scout (file .xlsx esportato da Volleyball Scout) e controllalo">Carica scout&hellip;</button>
         <button id="scoutd" title="Carica lo scout in formato DataVolley (file .dvw): ogni punto e' scritto in chiaro, con free ball e zone di battuta e attacco">Carica scout .dvw&hellip;</button>
+        <label id="suser" hidden title="La partita ha due scout: quello fatto nella pagina e quello importato da Volleyball Scout. Clip, filtri e tocchi seguono quello scelto; nessuno dei due viene modificato">Scout in uso
+          <select id="suse"><option value="live">fatto nella pagina</option><option value="imp">importato</option></select></label>
         <input type="file" id="sfile" accept=".xlsx" hidden>
         <input type="file" id="sfiled" accept=".dvw,text/plain,application/octet-stream" hidden>
       </div>
@@ -1914,6 +1916,7 @@ try { const w = JSON.parse(localStorage.getItem("volleycut:tchwin") || "null"); 
 let tsCache = { lr: null, s: null };
 function TS() {
   if (SCOUT && SCOUT.live) return SCOUT;
+  if (useImp()) return null;                                // in uso lo scout importato: i tocchi senza istante non si filtrano
   if (typeof LR === "undefined" || !LR || !LR.plist.length) return null;
   if (tsCache.lr !== LR) {
     const d = LV.scout(LIVE);
@@ -2150,9 +2153,13 @@ $("sfile").onchange = $("sfiled").onchange = async e => {
   try { s = await ScoutLib.loadScoutFile(await f.arrayBuffer()); }
   catch (err) { alert("Non riesco a leggere lo scout: " + err.message); return; }
   s.file = f.name;
-  if (LIVE && LRF && LRF.plist.length) {                    // lo scout fatto nella pagina resta quello in uso
-    if (!confirm("Questa partita ha lo scout fatto nella pagina, che resta quello in uso per clip e tocchi. Conservare comunque nel file lo scout " + f.name + "?")) return;
-    SCOUT_IMP = s; changed(); return;
+  if (LIVE && LRF && LRF.plist.length && !useImp()) {      // c'e' lo scout fatto nella pagina: si sceglie quale usare
+    const use = confirm("Questa partita ha gia' lo scout fatto nella pagina.\n\nOK = usa lo scout " + f.name + " per clip, filtri e tocchi\nAnnulla = resta in uso quello fatto nella pagina (" + f.name + " si conserva nel file)\n\nSi puo' cambiare quando vuoi con \"Scout in uso\". Lo scout fatto nella pagina non viene toccato.");
+    R.forEach(r => { delete r.sp2; delete r.spm2; });          // abbinamenti del vecchio scout importato: non valgono piu'
+    SCOUT_IMP = s;
+    if (use) setScoutUse(true); else changed();
+    if (use) showScout();
+    return;
   }
   if (R.some(r => r.spm) && !confirm("Ci sono abbinamenti corretti a mano. Sostituirli con l'abbinamento in ordine del nuovo scout?")) return;
   SCOUT = SCOUT_IMP = s;
@@ -2254,7 +2261,7 @@ function stats() {
   $("stats").innerHTML = "<b>" + k.length + "</b> clip tenute su " + R.length + " &middot; <b>" + (tot / 60).toFixed(1) +
     " min</b> su " + (DUR / 60).toFixed(1) + " min &middot; dubbi rimasti: " + R.filter(r => r.dubious && r.keep).length;
   thrInfo();
-  scoutBar();
+  scoutBar(); useSync();
 }
 let fltFor = null;
 function scoutBar() {
@@ -3048,8 +3055,33 @@ function liveRefresh() {                                  // rigioco e, se serve
   LR = LIVE && INS !== null ? LV.replay(Object.assign({}, LIVE, { ev: LIVE.ev.slice(0, INS) })) : LRF;
   if (!SCOUT || SCOUT.live || (LRF && LRF.plist.length)) liveToScout();
 }
-function liveChanged() { liveRefresh(); store.save(); markDirty(true); svRender(); }
+// ---- quale scout usare quando ci sono sia quello fatto nella pagina sia quello importato (LIVE.useImp, salvato nel
+// json). Ogni clip tiene l'abbinamento al punto per lo scout in uso (sp, spm) e quello dell'altro (sp2, spm2): al cambio
+// si scambiano, cosi' le correzioni a mano di ciascuno restano.
+function bothScouts() { return !!(LIVE && LRF && LRF.plist.length && SCOUT_IMP); }
+function useImp() { return !!(LIVE && LIVE.useImp && SCOUT_IMP); }
+function swapMatch() {
+  R.forEach(r => { const a = r.sp, b = r.spm; r.sp = r.sp2; r.spm = r.spm2; r.sp2 = a; r.spm2 = b;
+    for (const k of ["sp", "spm", "sp2", "spm2"]) if (r[k] === undefined || r[k] === false) delete r[k]; });
+}
+function setScoutUse(imp) {
+  if (!LIVE || !SCOUT_IMP || !!LIVE.useImp === imp) return;
+  swapMatch();
+  if (imp) { LIVE.useImp = true; SCOUT = SCOUT_IMP; if (!R.some(r => r.sp || r.spm)) ScoutLib.autoMatch(R, SCOUT.points, D.min_clip_s || 0.5); }
+  else { delete LIVE.useImp; SCOUT = null; }
+  liveRefresh(); refreshMatch(); changed(); svRender();
+}
+function useSync() {
+  const el = $("suser"); if (!el) return;
+  el.hidden = !bothScouts();
+  if (el.hidden) return;
+  $("suse").options[1].textContent = "importato (" + (SCOUT_IMP.file || "file") + ")";
+  $("suse").value = useImp() ? "imp" : "live";
+}
+$("suse").onchange = e => setScoutUse(e.target.value === "imp");
+function liveChanged() { liveRefresh(); store.save(); markDirty(true); svRender(); useSync(); }
 function liveToScout() {
+  if (useImp()) { if (SCOUT !== SCOUT_IMP) { SCOUT = SCOUT_IMP; refreshMatch(); } return; }
   if (!LIVE || !LRF || !LRF.plist.length) { if (SCOUT && SCOUT.live) { SCOUT = SCOUT_IMP; refreshMatch(); } return; }
   const d = LV.scout(LIVE);
   SCOUT = ScoutLib.fromDvw(d.team, d.touchList, d.plist, [], d.dv); SCOUT.live = true; SCOUT.file = "scout fatto nella pagina";
