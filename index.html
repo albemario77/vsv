@@ -3123,7 +3123,11 @@ function evText(e) {
 // ---- inserimento
 function addEv(e) {
   if (!LIVE) return;
-  if (INS !== null) { LIVE.ev.splice(INS, 0, e); INS++; C = null; liveChanged(); return; }   // inserimento in mezzo: niente salti
+  if (INS !== null) {                                       // inserimento in mezzo: niente salti
+    LIVE.ev.splice(INS, 0, e); INS++; C = null;
+    if (STAMP) { STP = SEL = INS; INS = null; selScroll = true; }   // timbratura: si torna al tocco in attesa (spostato di uno)
+    liveChanged(); return;
+  }
   const before = LR ? LR.plist.length : 0;
   LIVE.ev.push(e); C = null; liveChanged();
   if (LR.plist.length > before) afterPoint(e);
@@ -3492,10 +3496,16 @@ function svKey(e) {
   }
   const k = e.key, kl = k.toLowerCase();
   if (STAMP) {
-    if (k === "Enter" || kl === "n" || k === "Backspace" || k === "Escape") { e.preventDefault(); stampKeyDown(k); return true; }
-    if (k === " " || k === "," || k === "." || /^Arrow/.test(k) || e.ctrlKey || e.metaKey) return false;
-    if (/^F\d+$/.test(k)) e.preventDefault();
-    return true;
+    // inserimento durante la timbratura: un numero (o un tasto F) comincia un tocco o un evento nuovo, che va PRIMA del
+    // tocco in attesa all'istante del video; finito l'inserimento la timbratura riprende dallo stesso tocco
+    if (C && k === "Escape") { C = null; INS = null; liveRefresh(); svRender(); return true; }
+    if (!C && (/^[0-9]$/.test(k) || /^F[1-9]$/.test(k)) && !e.ctrlKey && !e.metaKey && !e.altKey && LIVE.ev[STP]) { INS = STP; liveRefresh(); }
+    else if (!C && (k === "Enter" || kl === "n" || k === "Backspace" || k === "Escape")) { e.preventDefault(); INS = null; stampKeyDown(k); return true; }
+    else if (!C) {
+      if (k === " " || k === "," || k === "." || /^Arrow/.test(k) || e.ctrlKey || e.metaKey) return false;
+      if (/^F\d+$/.test(k)) e.preventDefault();
+      return true;
+    }
   }
   if (/^F[1-9]$/.test(k)) { e.preventDefault(); fkey(+k.slice(1)); return true; }
   if (/^F\d+$/.test(k)) { e.preventDefault(); return true; }
