@@ -2137,6 +2137,17 @@ function tagReport() {
       g.by.map(b => '<tr data-tag="' + k(g) + '" data-pl="' + esc(b.cognome + "|" + b.numero) + '" data-sk="' + esc(b.tipo) + '" style="cursor:pointer"><td></td><td>' + b.n +
         "</td><td>" + esc(b.cognome) + " #" + b.numero + "</td><td>" + b.n + " su " + b.of + " (" + esc(b.tipo.toLowerCase()) + ")</td></tr>").join("")).join("") + "</table>";
 }
+// tocchi timbrati prima di quello che li precede nella sequenza: clic = vai al tocco nello scout della pagina
+function orderReport() {
+  const L = orderList();
+  if (!LIVE || !LRF) return "";
+  if (!L.length) return '<h3>Ordine degli istanti</h3><p class="good">Tutti i tocchi timbrati seguono l\'ordine dello scout.</p>';
+  return '<h3>Ordine degli istanti</h3><p class="bad">' + L.length + (L.length === 1 ? " tocco timbrato prima" : " tocchi timbrati prima") +
+    ' del tocco che li precede nello scout: uno dei due ha l\'istante sbagliato.</p><p class="mut">Clic su una riga: vai al tocco nello scout della pagina e correggi l\'istante.</p>' +
+    '<table class="stab"><tr><th>Punto</th><th>Tocco precedente</th><th>Istante</th><th>Tocco</th><th>Istante</th></tr>' +
+    L.map(o => { const tt = touchAt(o.i); return '<tr data-ev="' + o.i + '" style="cursor:pointer"><td>' + (tt ? "S" + tt.set + " " + tt.loc + "-" + tt.osp : "") +
+      "</td><td>" + esc(evText(LIVE.ev[o.prev])) + "</td><td>" + fmt(LIVE.ev[o.prev].t) + "</td><td><b>" + esc(evText(LIVE.ev[o.i])) + "</b></td><td><b>" + fmt(LIVE.ev[o.i].t) + "</b></td></tr>"; }).join("") + "</table>";
+}
 function showScout() {
   const s = SCOUT, errs = s.issues.filter(i => i.level === "err"), warns = s.issues.filter(i => i.level !== "err");
   const rows = s.sets.map(x => "<tr><td>" + x.set + "</td><td>" + x.points + "</td><td>" + (x.final ? x.final[0] + "-" + x.final[1] : "?") +
@@ -2146,7 +2157,11 @@ function showScout() {
     s.setsWon[0] + "-" + s.setsWon[1] + " (locali-ospiti).</p>" +
     '<table class="stab"><tr><th>Set</th><th>Punti</th><th>Finale</th><th>Vince</th><th title="Rally senza tocchi della nostra squadra: errore generico o punto generico dell\'avversario">Senza righe</th></tr>' + rows + "</table>" +
     (errs.length ? '<p class="bad"><b>Da correggere:</b></p><ul>' + errs.map(i => "<li>" + esc(i.msg) + "</li>").join("") + "</ul>" : '<p class="good">Controlli superati: i set rispettano le regole di fine set.</p>') +
-    (warns.length ? "<p><b>Da controllare:</b></p><ul>" + warns.map(i => "<li>" + esc(i.msg) + "</li>").join("") + "</ul>" : "") + matchReport() + tagReport();
+    (warns.length ? "<p><b>Da controllare:</b></p><ul>" + warns.map(i => "<li>" + esc(i.msg) + "</li>").join("") + "</ul>" : "") + matchReport() + orderReport() + tagReport();
+  $("sbody").querySelectorAll("tr[data-ev]").forEach(tr => { tr.onclick = () => {
+    const i = +tr.dataset.ev; $("sdlg").close(); if (!svOn) setSv(true);
+    SEL = i; selScroll = true; v.pause(); seek(Math.max(0, LIVE.ev[i].t - 2)); svRender();
+  }; });
   $("sbody").querySelectorAll("tr[data-tag]").forEach(tr => { tr.onclick = () => {
     Object.assign(FLT, { tag: [tr.dataset.tag], player: tr.dataset.pl ? [tr.dataset.pl] : [], skill: tr.dataset.sk ? [tr.dataset.sk] : [] });
     $("sdlg").close(); fltFor = null; changed();
@@ -3209,8 +3224,25 @@ function ctagsSync() {
   tagEditor(i, el, () => { sel = tchList().find(w => w.tch.ev === i) || sel; renderCine(); });
 }
 
+// ---- ordine degli istanti: la sequenza e' quella dello scout, l'istante di un tocco deve stare tra quello del tocco
+// timbrato prima e quello del tocco timbrato dopo (contano solo i tocchi con istante vero, non stimato)
+const isStamped = e => e && e.k === "t" && typeof e.t === "number" && !e.est;
+function orderIssue(i, t) {
+  let a = i - 1; while (a >= 0 && !isStamped(LIVE.ev[a])) a--;
+  let b = i + 1; while (b < LIVE.ev.length && !isStamped(LIVE.ev[b])) b++;
+  if (a >= 0 && t < LIVE.ev[a].t - 0.05) return "cade PRIMA del tocco precedente (" + evText(LIVE.ev[a]) + " a " + fmt(LIVE.ev[a].t) + ")";
+  if (b < LIVE.ev.length && t > LIVE.ev[b].t + 0.05) return "cade DOPO il tocco successivo (" + evText(LIVE.ev[b]) + " a " + fmt(LIVE.ev[b].t) + ")";
+  return "";
+}
+const orderOk = (i, t) => { const w = orderIssue(i, t); return !w || confirm("L'istante " + fmt(t) + " " + w + "." + String.fromCharCode(10, 10) + "Lo salvo lo stesso?"); };
+function orderList() {                                      // tocchi timbrati fuori sequenza
+  const out = []; let prev = -1;
+  if (LIVE) LIVE.ev.forEach((e, i) => { if (!isStamped(e)) return; if (prev >= 0 && e.t < LIVE.ev[prev].t - 0.05) out.push({ i, prev }); prev = i; });
+  return out;
+}
+
 // ---- timbratura degli istanti (scout convertito da VS): STP = indice del tocco in attesa
-let STAMP = false, STP = -1, stampKey = "";
+let STAMP = false, STP = -1, stampKey = "", stampWarn = null;   // stampWarn: avviso di ordine sul tocco in attesa (Invio di nuovo = timbra lo stesso)
 const stampLeft = () => (LIVE ? LIVE.ev.filter(e => e.k === "t" && e.est).length : 0);
 const touchAt = i => LRF && LRF.touchList.find(t => t.ev === i);
 const touchKey = t => (t ? t.set + ":" + t.loc + ":" + t.osp : "");
@@ -3236,9 +3268,13 @@ function stampStart() {
 function stampKeyDown(k) {
   if (k === "Enter") {
     const e = LIVE.ev[STP]; if (!e) { stampNext(-1); return; }
-    e.t = Math.round(v.currentTime * 100) / 100; delete e.est;
+    const t = Math.round(v.currentTime * 100) / 100, w = orderIssue(STP, t);
+    if (w && !(stampWarn && stampWarn.i === STP && Math.abs(stampWarn.t - t) < 0.05)) { stampWarn = { i: STP, t, msg: "Attenzione: l'istante " + fmt(t) + " " + w + ". Riporta il video al punto giusto e premi Invio, oppure premi di nuovo Invio per timbrare lo stesso." }; svRender(); return; }
+    stampWarn = null;
+    e.t = t; delete e.est;
     stampKey = touchKey(touchAt(STP)); liveChanged(); stampNext(STP); return;
   }
+  stampWarn = null;
   if (k === "n" || k === "N") { stampKey = touchKey(touchAt(STP)); stampNext(STP); return; }
   if (k === "Backspace") {
     let j = STP - 1; while (j >= 0 && LIVE.ev[j].k !== "t") j--;
@@ -3285,6 +3321,7 @@ function shiftEst(i, d) {
 const shiftNote = (n, d) => n ? "Spostati di " + (d > 0 ? "+" : "") + d.toFixed(2).replace(".", ",") + " s anche " + n + (n === 1 ? " tocco successivo" : " tocchi successivi") + " con istante stimato." : "";
 function evMove(i, t) {
   const e = LIVE.ev[i]; if (!e) return;
+  if (e.k === "t" && !orderOk(i, Math.round(t * 100) / 100)) return;
   const t0 = e.t;
   e.t = Math.max(0, Math.round(t * 100) / 100);
   const d = Math.round((e.t - t0) * 100) / 100, n = shiftEst(i, d);
@@ -3439,6 +3476,7 @@ $("leok").onclick = () => {
   else if (e.k === "sub") { e.out = +$("leout").value; e.in = +$("lein").value; if (e.out === e.in) { $("leerr").textContent = "Chi esce e chi entra sono la stessa giocatrice."; return; } }
   else if (e.k === "san") { e.who = $("lewho").value; e.kind = $("lekind").value; if (e.who === "noi") e.n = +$("lesn").value || null; else delete e.n; }
   else if (e.k === "rot") e.d = +$("led").value;
+  if (e.t !== e0.t && e.k === "t" && !orderOk(leIdx, e.t)) return;
   if (e.t !== e0.t) { delete e.est; const d = Math.round((e.t - e0.t) * 100) / 100; svNote = shiftNote(shiftEst(leIdx, d), d); }
   LIVE.ev[leIdx] = e; $("ledlg").close(); SEL = leIdx; seek(e.t); v.pause(); liveChanged();
   if (cine && tchMode()) { sel = tchList().find(w => w.tch.ev === leIdx) || sel; renderCine(); }   // vista cinema: resta sul tocco corretto
@@ -3667,6 +3705,7 @@ function svHead() {
   if (LR.phase === "over") x += '<p class="good">Partita finita (set ' + won[0] + "-" + won[1] + ").</p>";
   if (LR.issues.length) x += '<p class="bad">' + esc(LR.issues[LR.issues.length - 1]) + "</p>";
   if (svNote) { x += '<p class="mut">' + esc(svNote) + "</p>"; svNote = ""; }
+  if (STAMP && stampWarn && stampWarn.i === STP) x += '<p class="bad"><b>&#9888; ' + esc(stampWarn.msg) + "</b></p>";
   if (STAMP && LIVE.ev[STP]) {
     const tt = touchAt(STP);
     x += '<div class="row svins"><span>Timbratura &middot; prossimo: <b>' + esc(evText(LIVE.ev[STP])) + "</b>" + (tt ? " &middot; S" + tt.set + " " + tt.loc + "-" + tt.osp : "") +
