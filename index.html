@@ -1975,6 +1975,7 @@ function playlist() {
 }
 function renderCine() {
   if (!cine) return;
+  if ($("tchdlg").classList.contains("hov")) hideTouches();      // i chip "tocchi" dell'elenco stanno per essere ricreati
   const cf = $("cfilter"), cur = cf.value || (tchAvail() ? "tch" : "keep");
   const tags = [...new Set(R.map(r => (r.tag || "").trim()).filter(Boolean))].sort();
   cf.innerHTML = (tchAvail() ? '<option value="tch">Tocchi filtrati (scout fatto nella pagina)</option>' : "") +
@@ -2007,11 +2008,14 @@ function renderCine() {
   $("clist").innerHTML = P.map((r, i) => '<div class="ci' + (r === sel ? " on" : "") + (r.keep ? "" : " off") + '" data-i="' + i + '">' +
     '<span class="n">' + (i + 1) + '</span><span class="t">' + fmt(r.start) + '</span><span class="mut">' + (r.end - r.start).toFixed(0) + ' s</span><span class="sc">' +
     (SCOUT && r.sp ? esc(ScoutLib.pointLabel(SCOUT.points[r.sp - 1])) : "") + '</span>' +
+    (SCOUT && r.sp && SCOUT.points[r.sp - 1] ? '<button class="sm" data-a="tch" title="Tocchi del punto">tocchi</button>' : "") +
     '<span class="tg">' + esc(r.tag || "") + '</span><label title="Tieni"><input type="checkbox" class="k" ' + (r.keep ? "checked" : "") + '></label>' +
     '<label title="Seleziona per il minivideo"><input type="checkbox" class="s" ' + (r.sel ? "checked" : "") + "></label></div>").join("");
   $("clist").querySelectorAll(".ci").forEach(el => {
     const r = P[+el.dataset.i];
-    el.onclick = e => { if (!e.target.closest("input,label")) playClip(r); };
+    el.onclick = e => { if (!e.target.closest("input,label,button")) playClip(r); };
+    const tb = el.querySelector('button[data-a="tch"]');
+    if (tb) { tb.onclick = () => showTouches(r); hoverTouches(tb, () => r); }
     el.querySelector("input.k").onchange = e => { r.keep = e.target.checked; touch(r); changed(); };
     el.querySelector("input.s").onchange = e => { r.sel = e.target.checked; changed(); };
   });
