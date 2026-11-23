@@ -78,7 +78,13 @@ body.cine #vzoom{bottom:0}
 #csplit{position:absolute;left:-5px;top:0;bottom:0;width:9px;cursor:col-resize;z-index:5;touch-action:none}
 #csplit:hover,#csplit.drag{background:color-mix(in srgb,var(--acc) 35%,transparent)}
 body.cdrag{cursor:col-resize;user-select:none}body.cdrag video{pointer-events:none}
-#cpanel #scflt{gap:6px}#cpanel #scflt select{flex:1 1 45%;min-width:0}#cpanel #scflt>.mut:first-child{flex:1 0 100%}
+#cpanel #scflt{gap:6px}#cpanel #scflt select,#cpanel #scflt .msel{flex:1 1 45%;min-width:0}#cpanel #scflt .msel>summary{max-width:none}
+.msel{position:relative;display:inline-block}.msel[hidden]{display:none}
+.msel>summary{list-style:none;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 22px 3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16em;position:relative}
+.msel>summary::-webkit-details-marker{display:none}.msel>summary::after{content:"\25BE";position:absolute;right:7px;color:var(--mut)}
+.msel.on>summary{border-color:var(--acc);color:var(--acc);font-weight:600}
+.mlist{position:fixed;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);padding:4px;overflow:auto;min-width:12em}
+.mlist label{display:flex;gap:6px;align-items:center;padding:3px 8px;white-space:nowrap;cursor:pointer;border-radius:4px}.mlist label:hover{background:var(--bg)}#cpanel #scflt>.mut:first-child{flex:1 0 100%}
 #clist{overflow:auto;flex:1;margin-top:6px}
 .ci{display:flex;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
 .ci:hover{background:color-mix(in srgb,var(--acc) 8%,transparent)}
@@ -259,17 +265,17 @@ button.on{outline:2px solid var(--acc)}
   </div>
   <div class="row" id="scflt" hidden>
     <span class="mut">Filtra le clip per scout:</span>
-    <select id="fset" title="Set"></select>
-    <select id="fplayer" title="Giocatore: clip in cui ha toccato la palla"></select>
-    <select id="fskill" title="Fondamentale"></select>
-    <select id="fgrade" title="Voto del tocco"></select>
-    <select id="fpos" title="Posizione in campo del giocatore al momento del tocco (P1-P6)"></select>
-    <select id="frot" title="Rotazione: posizione del palleggiatore a inizio rally (P1-P6)"></select>
-    <select id="fdet" title="Dettagli del tocco scritti nello scout .dvw: tipo di battuta, tipo di palla, tipo di colpo, muro, codici speciali..." hidden></select>
-    <select id="fda" title="Zona di partenza del colpo (battuta, attacco, free ball): solo con lo scout .dvw" hidden></select>
-    <select id="fa" title="Zona di arrivo del colpo (battuta, ricezione, attacco, free ball): solo con lo scout .dvw" hidden></select>
-    <select id="fwon" title="Chi ha segnato il punto"></select>
-    <select id="fann" title="Etichette messe ai tocchi (scout fatto nella pagina)" hidden></select>
+    <details class="msel" id="fset" title="Set"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fplayer" title="Giocatore: clip in cui ha toccato la palla"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fskill" title="Fondamentale"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fgrade" title="Voto del tocco"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fpos" title="Posizione in campo del giocatore al momento del tocco (P1-P6)"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="frot" title="Rotazione: posizione del palleggiatore a inizio rally (P1-P6)"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fdet" title="Dettagli del tocco scritti nello scout .dvw: tipo di battuta, tipo di palla, tipo di colpo, muro, codici speciali..." hidden><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fda" title="Zona di partenza del colpo (battuta, attacco, free ball): solo con lo scout .dvw" hidden><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fa" title="Zona di arrivo del colpo (battuta, ricezione, attacco, free ball): solo con lo scout .dvw" hidden><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fwon" title="Chi ha segnato il punto"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fann" title="Etichette messe ai tocchi (scout fatto nella pagina)" hidden><summary></summary><div class="mlist"></div></details>
     <button class="sm" id="fclear">azzera</button>
     <span class="mut" id="fcount"></span>
     <button class="sm" id="ftag" title="Scrive nelle etichette set, punteggio e chi ha segnato">Etichetta dallo scout&hellip;</button>
@@ -1927,11 +1933,10 @@ function TS() {
 }
 const tchAvail = () => { const S = TS(); return !!(S && S.touchList.some(t => typeof t.t === "number" && t.numero !== null && !t.est)); };
 function tchPass(t, p) {
-  if (FLT.set && String(p.set) !== FLT.set) return false;
-  if (FLT.won && FLT.won !== "err" && p.winner !== FLT.won) return false;
-  if (FLT.rot && (t.posP || p.rot) !== FLT.rot) return false;
-  return (!FLT.player || t.cognome + "|" + t.numero === FLT.player) && (!FLT.skill || t.tipo === FLT.skill) && (!FLT.grade || t.voto === FLT.grade) &&
-    (!FLT.pos || t.posG === FLT.pos) && (!FLT.det || ScoutLib.dvMatch(t, FLT.det, TS().dv)) && (!FLT.da || t.da === FLT.da) && (!FLT.a || t.a === FLT.a) && tagPass(t);
+  if (!fin("set", String(p.set))) return false;
+  if (FLT.won.length && !FLT.won.some(w => w === "err" || p.winner === w)) return false;
+  if (!fin("rot", t.posP || p.rot)) return false;
+  return touchPass(t, TS().dv);
 }
 let tchCache = { key: "", list: [] };
 function tchList() {
@@ -2139,7 +2144,7 @@ function showScout() {
     (errs.length ? '<p class="bad"><b>Da correggere:</b></p><ul>' + errs.map(i => "<li>" + esc(i.msg) + "</li>").join("") + "</ul>" : '<p class="good">Controlli superati: i set rispettano le regole di fine set.</p>') +
     (warns.length ? "<p><b>Da controllare:</b></p><ul>" + warns.map(i => "<li>" + esc(i.msg) + "</li>").join("") + "</ul>" : "") + matchReport() + tagReport();
   $("sbody").querySelectorAll("tr[data-tag]").forEach(tr => { tr.onclick = () => {
-    Object.assign(FLT, { tag: tr.dataset.tag, player: tr.dataset.pl || "", skill: tr.dataset.sk || "" });
+    Object.assign(FLT, { tag: [tr.dataset.tag], player: tr.dataset.pl ? [tr.dataset.pl] : [], skill: tr.dataset.sk ? [tr.dataset.sk] : [] });
     $("sdlg").close(); fltFor = null; changed();
   }; });
   $("sexp").hidden = !(s.dv && s.dv.x);
@@ -2274,7 +2279,7 @@ function stats() {
 let fltFor = null;
 function scoutBar() {
   $("scbar").hidden = !SCOUT; $("scflt").hidden = !SCOUT;
-  if (!SCOUT || !MATCH) { fltFor = null; Object.keys(FLT).forEach(k => { FLT[k] = ""; }); return; }
+  if (!SCOUT || !MATCH) { fltFor = null; fltReset(); return; }
   if (fltFor !== SCOUT) { fltFor = SCOUT; fillFilters(); }
   $("scinfo").innerHTML = SCOUT.points.length + " punti &middot; " + MATCH.pairs.length + " clip abbinate" +
     (MATCH.dup.size ? ' &middot; <b class="bad">' + MATCH.dup.size + " punti doppi</b>" : "") +
@@ -2285,30 +2290,34 @@ function scoutBar() {
 
 // ---- tabella
 // ---- filtri per scout (valgono per tabella, vista cinema e pulsanti di selezione)
-const FLT = { set: "", player: "", skill: "", grade: "", pos: "", rot: "", det: "", da: "", a: "", won: "", tag: "" };
+const FLT = { set: [], player: [], skill: [], grade: [], pos: [], rot: [], det: [], da: [], a: [], won: [], tag: [] };   // per filtro: valori scelti, in alternativa tra loro
+const fin = (k, v) => !FLT[k].length || FLT[k].includes(v);
+const fltReset = () => Object.keys(FLT).forEach(k => { FLT[k] = []; });
+// filtri del singolo tocco: devono valere tutti sullo stesso tocco
+const touchPass = (t, dv) => tagPass(t) && fin("player", t.cognome + "|" + t.numero) && fin("skill", t.tipo) && fin("grade", t.voto) && fin("pos", t.posG) &&
+  (!FLT.det.length || FLT.det.some(d => ScoutLib.dvMatch(t, d, dv))) && fin("da", t.da) && fin("a", t.a);
 // etichetta del tocco: "" qualsiasi, "*" almeno una, altrimenti la chiave (ScoutLib.Live.tagKey)
-const tagPass = t => !FLT.tag || (FLT.tag === "*" ? !!(t.tags && t.tags.length) : (t.tags || []).some(x => ScoutLib.Live.tagKey(x) === FLT.tag));
-const fltOn = () => Object.values(FLT).some(Boolean);
+const tagPass = t => !FLT.tag.length || FLT.tag.some(f => f === "*" ? !!(t.tags && t.tags.length) : (t.tags || []).some(x => ScoutLib.Live.tagKey(x) === f));
+const fltOn = () => Object.values(FLT).some(a => a.length);
 function passScout(r) {
   if (!SCOUT || !fltOn()) return true;
   const p = r.sp ? SCOUT.points[r.sp - 1] : null;
   if (!p) return false;
-  if (FLT.set && String(p.set) !== FLT.set) return false;
-  if (FLT.won === "err" ? !p.missing : FLT.won && p.winner !== FLT.won) return false;
-  if (FLT.rot && !(p.rot ? p.rot === FLT.rot : p.touches.some(t => t.posP === FLT.rot))) return false;   // la rotazione e' la stessa per tutto il punto
-  if (FLT.player || FLT.skill || FLT.grade || FLT.pos || FLT.det || FLT.da || FLT.a || FLT.tag) {
-    return p.touches.some(t => tagPass(t) && (!FLT.player || t.cognome + "|" + t.numero === FLT.player) && (!FLT.skill || t.tipo === FLT.skill) &&
-      (!FLT.grade || t.voto === FLT.grade) && (!FLT.pos || t.posG === FLT.pos) && (!FLT.det || ScoutLib.dvMatch(t, FLT.det, SCOUT.dv)) && (!FLT.da || t.da === FLT.da) && (!FLT.a || t.a === FLT.a));
-  }
+  if (!fin("set", String(p.set))) return false;
+  if (FLT.won.length && !FLT.won.some(w => w === "err" ? p.missing : p.winner === w)) return false;
+  if (FLT.rot.length && !FLT.rot.some(x => p.rot ? p.rot === x : p.touches.some(t => t.posP === x))) return false;   // la rotazione e' la stessa per tutto il punto
+  if (["player", "skill", "grade", "pos", "det", "da", "a", "tag"].some(k => FLT[k].length)) return p.touches.some(t => touchPass(t, SCOUT.dv));
   return true;
 }
 const isVisible = r => (!$("onlyd").checked || r.dubious) && passScout(r);
 function fillFilters() {
   const pts = SCOUT.points, tc = pts.flatMap(p => p.touches);
-  const opts = (id, first, list) => {
-    const el = $(id), cur = FLT[el.dataset.k];
-    el.innerHTML = '<option value="">' + first + "</option>" + list.map(([v, l]) => '<option value="' + esc(v) + '">' + esc(l) + "</option>").join("");
-    el.value = list.some(([v]) => v === cur) ? cur : ""; FLT[el.dataset.k] = el.value;
+  const opts = (id, first, list) => {                       // menu a caselle: restano scelti i valori che esistono ancora
+    const el = $(id), k = el.dataset.k, vals = new Set(list.map(x => x[0]));
+    FLT[k] = FLT[k].filter(v => vals.has(v));
+    el.dataset.first = first; el._labels = new Map(list);
+    el.querySelector(".mlist").innerHTML = list.map(([v, l]) => '<label><input type="checkbox" value="' + esc(v) + '"' + (FLT[k].includes(v) ? " checked" : "") + "> " + esc(l) + "</label>").join("");
+    mselSum(el);
   };
   const uniq = a => [...new Set(a)];
   opts("fset", "tutti i set", uniq(pts.map(p => p.set)).map(s => [String(s), "Set " + s]));
@@ -2337,9 +2346,33 @@ function applyFilters() {
   const n = R.filter(r => isVisible(r)).length;
   $("fcount").textContent = fltOn() ? n + " clip corrispondono" : "";
 }
-["fset", "fplayer", "fskill", "fgrade", "fpos", "frot", "fdet", "fda", "fa", "fwon", "fann"].forEach(id => { $(id).dataset.k = { fset: "set", fplayer: "player", fskill: "skill", fgrade: "grade", fpos: "pos", frot: "rot", fdet: "det", fda: "da", fa: "a", fwon: "won", fann: "tag" }[id];
-  $(id).onchange = e => { FLT[e.target.dataset.k] = e.target.value; applyFilters(); }; });
-$("fclear").onclick = () => { Object.keys(FLT).forEach(k => { FLT[k] = ""; }); fillFilters(); applyFilters(); };
+// testo del menu: le voci scelte (se lunghe, la prima e "+n"); senza scelte la dicitura "tutti..."
+function mselSum(el) {
+  const a = FLT[el.dataset.k], L = el._labels || new Map(), sm = el.querySelector("summary");
+  const all = a.map(v => L.get(v) || v).join(", ");
+  sm.textContent = !a.length ? el.dataset.first || "" : all.length <= 22 ? all : (L.get(a[0]) || a[0]) + " +" + (a.length - 1);
+  sm.title = a.length ? a.map(v => L.get(v) || v).join(", ") : el.title;
+  el.classList.toggle("on", a.length > 0);
+}
+// elenco a posizione fissa sotto (o sopra) il menu: non viene tagliato dai pannelli che scorrono
+function mselPlace(el) {
+  const r = el.querySelector("summary").getBoundingClientRect(), m = el.querySelector(".mlist"), below = innerHeight - r.bottom;
+  m.style.minWidth = Math.max(r.width, 160) + "px";
+  if (below < 220 && r.top > below) { m.style.top = ""; m.style.bottom = (innerHeight - r.top + 2) + "px"; m.style.maxHeight = (r.top - 16) + "px"; }
+  else { m.style.bottom = ""; m.style.top = (r.bottom + 2) + "px"; m.style.maxHeight = (below - 16) + "px"; }
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+}
+const mselClose = keep => document.querySelectorAll("details.msel[open]").forEach(o => { if (o !== keep) o.open = false; });
+["fset", "fplayer", "fskill", "fgrade", "fpos", "frot", "fdet", "fda", "fa", "fwon", "fann"].forEach(id => {
+  const el = $(id);
+  el.dataset.k = { fset: "set", fplayer: "player", fskill: "skill", fgrade: "grade", fpos: "pos", frot: "rot", fdet: "det", fda: "da", fa: "a", fwon: "won", fann: "tag" }[id];
+  el.querySelector(".mlist").onchange = () => { FLT[el.dataset.k] = [...el.querySelectorAll(".mlist input:checked")].map(i => i.value); mselSum(el); applyFilters(); };
+  el.addEventListener("toggle", () => { if (el.open) { mselClose(el); mselPlace(el); } });
+});
+document.addEventListener("click", e => { if (!e.target.closest || !e.target.closest("details.msel")) mselClose(); });
+window.addEventListener("resize", () => mselClose());
+document.addEventListener("scroll", e => { if (!(e.target.closest && e.target.closest(".mlist"))) document.querySelectorAll("details.msel[open]").forEach(mselPlace); }, true);
+$("fclear").onclick = () => { fltReset(); fillFilters(); applyFilters(); };
 
 // ---- etichette dallo scout
 function scoutTag(r, o) {
@@ -4092,6 +4125,7 @@ document.addEventListener("keydown", e => {
   if (svKey(e)) return;
   if ($("zdlg").open || $("ledlg").open) return;
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "checkbox") return;
+  if (document.activeElement.closest && document.activeElement.closest("details.msel")) { if (e.key === "Escape") { mselClose(); document.activeElement.blur(); } return; }
   const k = e.key.toLowerCase(), all = SCOUT && fltOn() ? sorted().filter(isVisible) : sorted(), i = all.indexOf(sel);
   // nella vista Scout restano solo i tasti del video (le lettere sono dello scout)
   if (svOn && !(k === " " || k === "," || k === "." || k === "arrowleft" || k === "arrowright" || ((e.ctrlKey || e.metaKey) && k === "s"))) return;
