@@ -85,6 +85,9 @@ body.cdrag{cursor:col-resize;user-select:none}body.cdrag video{pointer-events:no
 .msel.on>summary{border-color:var(--acc);color:var(--acc);font-weight:600}
 .mlist{position:fixed;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);padding:4px;overflow:auto;min-width:12em}
 .mlist label{display:flex;gap:6px;align-items:center;padding:3px 8px;white-space:nowrap;cursor:pointer;border-radius:4px}.mlist label:hover{background:var(--bg)}#cpanel #scflt>.mut:first-child{flex:1 0 100%}
+.frel{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px dashed var(--line);border-radius:8px;padding:4px 6px}.frel.on{border-color:var(--acc)}
+.frel>.mut{font-size:.9em}#cpanel .frel{flex:1 0 100%;box-sizing:border-box}#cpanel .frel>.mut{flex:1 0 100%}
+#fnxdir{background:var(--card);color:inherit;border:1px solid var(--line);border-radius:6px;padding:3px 6px}
 #clist{overflow:auto;flex:1;margin-top:6px}
 .ci{display:flex;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
 .ci:hover{background:color-mix(in srgb,var(--acc) 8%,transparent)}
@@ -276,10 +279,12 @@ button.on{outline:2px solid var(--acc)}
     <details class="msel" id="fa" title="Zona di arrivo del colpo (battuta, ricezione, attacco, free ball): solo con lo scout .dvw" hidden><summary></summary><div class="mlist"></div></details>
     <details class="msel" id="fwon" title="Chi ha segnato il punto"><summary></summary><div class="mlist"></div></details>
     <details class="msel" id="fann" title="Etichette messe ai tocchi (scout fatto nella pagina)" hidden><summary></summary><div class="mlist"></div></details>
-    <select id="fnxdir" title="Il tocco filtrato deve avere, nello stesso punto, un altro tocco con il fondamentale, il voto e l'etichetta scelti qui accanto: subito dopo / subito prima, oppure in qualunque momento dopo / prima nel punto"><option value="next">seguito subito da&hellip;</option><option value="prev">preceduto subito da&hellip;</option><option value="after">seguito nel punto da&hellip;</option><option value="before">preceduto nel punto da&hellip;</option></select>
+    <div class="frel" id="frel"><span class="mut">Altro tocco dello stesso punto (prima o dopo quello filtrato):</span>
+    <select id="fnxdir" title="Il tocco filtrato deve avere, nello stesso punto, un altro tocco con il fondamentale, il voto e l'etichetta scelti qui accanto: subito dopo / subito prima, oppure in qualunque momento dopo / prima nel punto"><option value="next">subito dopo</option><option value="prev">subito prima</option><option value="after">dopo, nel punto</option><option value="before">prima, nel punto</option></select>
     <details class="msel" id="fnskill" title="Fondamentale dell'altro tocco"><summary></summary><div class="mlist"></div></details>
     <details class="msel" id="fngrade" title="Voto dell'altro tocco"><summary></summary><div class="mlist"></div></details>
     <details class="msel" id="fntag" title="Etichetta dell'altro tocco" hidden><summary></summary><div class="mlist"></div></details>
+    </div>
     <button class="sm" id="fclear">azzera</button>
     <span class="mut" id="fcount"></span>
     <button class="sm" id="ftag" title="Scrive nelle etichette set, punteggio e chi ha segnato">Etichetta dallo scout&hellip;</button>
@@ -2382,6 +2387,7 @@ function applyFilters() {
   renderRows(); renderCine(); selStats();
   const n = R.filter(r => isVisible(r)).length;
   $("fcount").textContent = fltOn() ? n + " clip corrispondono" : "";
+  $("frel").classList.toggle("on", !!(FLT.nskill.length || FLT.ngrade.length || FLT.ntag.length));
 }
 // testo del menu: le voci scelte (se lunghe, la prima e "+n"); senza scelte la dicitura "tutti..."
 function mselSum(el) {
