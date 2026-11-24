@@ -276,9 +276,10 @@ button.on{outline:2px solid var(--acc)}
     <details class="msel" id="fa" title="Zona di arrivo del colpo (battuta, ricezione, attacco, free ball): solo con lo scout .dvw" hidden><summary></summary><div class="mlist"></div></details>
     <details class="msel" id="fwon" title="Chi ha segnato il punto"><summary></summary><div class="mlist"></div></details>
     <details class="msel" id="fann" title="Etichette messe ai tocchi (scout fatto nella pagina)" hidden><summary></summary><div class="mlist"></div></details>
-    <select id="fnxdir" title="Il tocco filtrato deve essere seguito (o preceduto) subito, nello stesso punto, da un tocco con il fondamentale e il voto scelti qui accanto"><option value="next">seguito da&hellip;</option><option value="prev">preceduto da&hellip;</option></select>
-    <details class="msel" id="fnskill" title="Fondamentale del tocco subito dopo (o subito prima), di qualunque squadra"><summary></summary><div class="mlist"></div></details>
-    <details class="msel" id="fngrade" title="Voto del tocco subito dopo (o subito prima)"><summary></summary><div class="mlist"></div></details>
+    <select id="fnxdir" title="Il tocco filtrato deve avere, nello stesso punto, un altro tocco con il fondamentale, il voto e l'etichetta scelti qui accanto: subito dopo / subito prima, oppure in qualunque momento dopo / prima nel punto"><option value="next">seguito subito da&hellip;</option><option value="prev">preceduto subito da&hellip;</option><option value="after">seguito nel punto da&hellip;</option><option value="before">preceduto nel punto da&hellip;</option></select>
+    <details class="msel" id="fnskill" title="Fondamentale dell'altro tocco"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fngrade" title="Voto dell'altro tocco"><summary></summary><div class="mlist"></div></details>
+    <details class="msel" id="fntag" title="Etichetta dell'altro tocco" hidden><summary></summary><div class="mlist"></div></details>
     <button class="sm" id="fclear">azzera</button>
     <span class="mut" id="fcount"></span>
     <button class="sm" id="ftag" title="Scrive nelle etichette set, punteggio e chi ha segnato">Etichetta dallo scout&hellip;</button>
@@ -2312,20 +2313,23 @@ function scoutBar() {
 
 // ---- tabella
 // ---- filtri per scout (valgono per tabella, vista cinema e pulsanti di selezione)
-const FLT = { set: [], player: [], skill: [], grade: [], pos: [], rot: [], det: [], da: [], a: [], won: [], tag: [], nskill: [], ngrade: [], dir: [] };   // dir: [] = "seguito da", ["prev"] = "preceduto da"   // per filtro: valori scelti, in alternativa tra loro
+const FLT = { set: [], player: [], skill: [], grade: [], pos: [], rot: [], det: [], da: [], a: [], won: [], tag: [], nskill: [], ngrade: [], ntag: [], dir: [] };   // dir: [] subito dopo, ["prev"] subito prima, ["after"] / ["before"] dopo / prima nel punto   // per filtro: valori scelti, in alternativa tra loro
 const fin = (k, v) => !FLT[k].length || FLT[k].includes(v);
 const fltReset = () => Object.keys(FLT).forEach(k => { FLT[k] = []; });
 // filtri del singolo tocco: devono valere tutti sullo stesso tocco
 const touchPass = (t, dv, p) => relPass(t, p) && tagPass(t) && fin("player", t.cognome + "|" + t.numero) && fin("skill", t.tipo) && fin("grade", t.voto) && fin("pos", t.posG) &&
   (!FLT.det.length || FLT.det.some(d => ScoutLib.dvMatch(t, d, dv))) && fin("da", t.da) && fin("a", t.a);
-// tocco subito dopo (o subito prima) nello stesso punto, di qualunque squadra
+// altro tocco dello stesso punto: subito dopo / subito prima, o in qualunque momento dopo / prima
 function relPass(t, p) {
-  if (!FLT.nskill.length && !FLT.ngrade.length) return true;
-  const i = p ? p.touches.indexOf(t) : -1, n = i < 0 ? null : p.touches[FLT.dir.length ? i - 1 : i + 1];
-  return !!n && fin("nskill", n.tipo) && fin("ngrade", n.voto);
+  if (!FLT.nskill.length && !FLT.ngrade.length && !FLT.ntag.length) return true;
+  const i = p ? p.touches.indexOf(t) : -1;
+  if (i < 0) return false;
+  const ok = n => !!n && fin("nskill", n.tipo) && fin("ngrade", n.voto) && tagIn(n, FLT.ntag), d = FLT.dir[0] || "next", T = p.touches;
+  return d === "prev" ? ok(T[i - 1]) : d === "after" ? T.slice(i + 1).some(ok) : d === "before" ? T.slice(0, i).some(ok) : ok(T[i + 1]);
 }
 // etichetta del tocco: "" qualsiasi, "*" almeno una, altrimenti la chiave (ScoutLib.Live.tagKey)
-const tagPass = t => !FLT.tag.length || FLT.tag.some(f => f === "*" ? !!(t.tags && t.tags.length) : (t.tags || []).some(x => ScoutLib.Live.tagKey(x) === f));
+const tagIn = (t, L) => !L.length || L.some(f => f === "*" ? !!(t.tags && t.tags.length) : (t.tags || []).some(x => ScoutLib.Live.tagKey(x) === f));
+const tagPass = t => tagIn(t, FLT.tag);
 const fltOn = () => Object.entries(FLT).some(([k, a]) => k !== "dir" && a.length);
 function passScout(r) {
   if (!SCOUT || !fltOn()) return true;
@@ -2334,7 +2338,7 @@ function passScout(r) {
   if (!fin("set", String(p.set))) return false;
   if (FLT.won.length && !FLT.won.some(w => w === "err" ? p.missing : p.winner === w)) return false;
   if (FLT.rot.length && !FLT.rot.some(x => p.rot ? p.rot === x : p.touches.some(t => t.posP === x))) return false;   // la rotazione e' la stessa per tutto il punto
-  if (["player", "skill", "grade", "pos", "det", "da", "a", "tag", "nskill", "ngrade"].some(k => FLT[k].length)) return p.touches.some(t => touchPass(t, SCOUT.dv, p));
+  if (["player", "skill", "grade", "pos", "det", "da", "a", "tag", "nskill", "ngrade", "ntag"].some(k => FLT[k].length)) return p.touches.some(t => touchPass(t, SCOUT.dv, p));
   return true;
 }
 const isVisible = r => (!$("onlyd").checked || r.dubious) && passScout(r);
@@ -2356,7 +2360,7 @@ function fillFilters() {
   opts("fgrade", "tutti i voti", uniq(tc.map(t => t.voto)).filter(Boolean).sort().map(g => [g, g]));
   opts("fnskill", "qualsiasi fondamentale", sk.map(s => [s, s]));
   opts("fngrade", "qualsiasi voto", uniq(tc.map(t => t.voto)).filter(Boolean).sort().map(g => [g, g]));
-  $("fnxdir").value = FLT.dir.length ? "prev" : "next";
+  $("fnxdir").value = FLT.dir[0] || "next";
   const byPos = (a, b) => a.localeCompare(b, "it", { numeric: true });
   opts("fpos", "ogni posizione", uniq(tc.map(t => t.posG)).filter(Boolean).sort(byPos).map(x => [x, "Posizione " + x]));
   opts("frot", "ogni rotazione", uniq(tc.map(t => t.posP).concat(pts.map(p => p.rot))).filter(Boolean).sort(byPos).map(x => [x, "Rotazione " + x]));
@@ -2370,6 +2374,8 @@ function fillFilters() {
   const tg = new Map(), ts = TS(); (ts ? ts.points.flatMap(p => p.touches) : tc).forEach(t => (t.tags || []).forEach(x => { const k = ScoutLib.Live.tagKey(x); if (k && !tg.has(k)) tg.set(k, x.trim()); }));
   opts("fann", "ogni etichetta", tg.size ? [["*", "con qualche etichetta"]].concat([...tg].sort((a, b) => a[1].localeCompare(b[1], "it"))) : []);
   $("fann").hidden = !tg.size;
+  opts("fntag", "qualsiasi etichetta", tg.size ? [["*", "con qualche etichetta"]].concat([...tg].sort((a, b) => a[1].localeCompare(b[1], "it"))) : []);
+  $("fntag").hidden = !tg.size;
   opts("fwon", "chiunque segni", [["loc", "segnano i locali"], ["osp", "segnano gli ospiti"], ["err", "errore avversario"]]);
 }
 function applyFilters() {
@@ -2394,16 +2400,16 @@ function mselPlace(el) {
   m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
 }
 const mselClose = keep => document.querySelectorAll("details.msel[open]").forEach(o => { if (o !== keep) o.open = false; });
-["fset", "fplayer", "fskill", "fgrade", "fpos", "frot", "fdet", "fda", "fa", "fwon", "fann", "fnskill", "fngrade"].forEach(id => {
+["fset", "fplayer", "fskill", "fgrade", "fpos", "frot", "fdet", "fda", "fa", "fwon", "fann", "fnskill", "fngrade", "fntag"].forEach(id => {
   const el = $(id);
-  el.dataset.k = { fset: "set", fplayer: "player", fskill: "skill", fgrade: "grade", fpos: "pos", frot: "rot", fdet: "det", fda: "da", fa: "a", fwon: "won", fann: "tag", fnskill: "nskill", fngrade: "ngrade" }[id];
+  el.dataset.k = { fset: "set", fplayer: "player", fskill: "skill", fgrade: "grade", fpos: "pos", frot: "rot", fdet: "det", fda: "da", fa: "a", fwon: "won", fann: "tag", fnskill: "nskill", fngrade: "ngrade", fntag: "ntag" }[id];
   el.querySelector(".mlist").onchange = () => { FLT[el.dataset.k] = [...el.querySelectorAll(".mlist input:checked")].map(i => i.value); mselSum(el); applyFilters(); };
   el.addEventListener("toggle", () => { if (el.open) { mselClose(el); mselPlace(el); } });
 });
 document.addEventListener("click", e => { if (!e.target.closest || !e.target.closest("details.msel")) mselClose(); });
 window.addEventListener("resize", () => mselClose());
 document.addEventListener("scroll", e => { if (!(e.target.closest && e.target.closest(".mlist"))) document.querySelectorAll("details.msel[open]").forEach(mselPlace); }, true);
-$("fnxdir").onchange = () => { FLT.dir = $("fnxdir").value === "prev" ? ["prev"] : []; if (FLT.nskill.length || FLT.ngrade.length) applyFilters(); };
+$("fnxdir").onchange = () => { const v = $("fnxdir").value; FLT.dir = v === "next" ? [] : [v]; if (FLT.nskill.length || FLT.ngrade.length || FLT.ntag.length) applyFilters(); };
 $("fclear").onclick = () => { fltReset(); fillFilters(); applyFilters(); };
 
 // ---- etichette dallo scout
