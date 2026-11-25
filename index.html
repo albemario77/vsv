@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261125-2148">
+<meta name="vsv-versione" content="20261125-2256">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -2583,13 +2583,17 @@ function status() {
     (lastSave ? " &middot; ultimo salvataggio " + lastSave + (fh ? " in " + fh.name : "") : "") +
     " &middot; copia automatica nel browser";
 }
-function markDirty(d) { dirty = d; status(); }
+function markDirty(d) {
+  dirty = d; status();
+  const a = window.pywebview && window.pywebview.api;             // nell'app: alla chiusura della finestra chiede se c'e' lavoro non salvato
+  if (a && a.set_dirty) a.set_dirty(!!d);
+}
 const projectData = () => ({ video_name: D.video_name, duration: D.duration, threshold: D.threshold, min_clip_s: D.min_clip_s,
   motion: D.motion, motion_bin: D.motion_bin, motion_max: D.motion_max, whistles: D.whistles, seg: D.seg, fps: D.fps,
   cells: D.cells, zones: D.zones, deleted: D.deleted || [], compact: D.compact || null, court: D.court || null });
 let loadedRev = +(D.meta && D.meta.revision || 0);          // revisione del file aperto: serve a non sovrascrivere un salvataggio fatto altrove
 const toJSON = rev => JSON.stringify({ meta: Object.assign({}, D.meta, { reviewed: true, revision: rev, saved_at: new Date().toISOString() },
-  SCOUT_IMP ? { scout: scoutMeta() } : {}, LIVE ? { live: LIVE } : {}, { project: projectData() }),
+  SCOUT_IMP ? { scout: scoutMeta() } : {}, LIVE ? { live: LIVE } : {}, MATCHMETA ? { match: MATCHMETA } : {}, { project: projectData() }),
   rallies: sorted().map((r, i) => Object.assign({}, r, { n: i + 1, duration: r.end - r.start })) }, null, 2);
 function setProject(pj, rallies) {
   D = Object.assign({}, EMPTY, pj, { empty: false, video_src: "", rallies: rallies.map(r => Object.assign({}, r)),
@@ -2667,6 +2671,7 @@ function loadText(text, name) {
   let d;
   try { d = JSON.parse(text); if (!Array.isArray(d.rallies)) throw 0; } catch (e) { alert("File non valido: non e' un rallies.json."); return false; }
   if (dirty && !confirm("Ci sono modifiche non salvate su file. Aprire comunque e sostituirle?")) return false;
+  APP_MATCH = null;                                                 // un file aperto a mano non si salva sopra la partita aperta dall'app
   const pj = d.meta && d.meta.project;
   if (pj && (D.empty || pj.video_name !== D.video_name)) setProject(pj, d.rallies);
   else if (pj) { ["threshold", "motion", "motion_bin", "motion_max", "cells", "zones", "seg", "fps", "court"].forEach(k => { if (k in pj) D[k] = pj[k]; }); D.deleted = pj.deleted || []; thrPrev = null; }
