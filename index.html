@@ -210,7 +210,7 @@ button.on{outline:2px solid var(--acc)}
         <span class="mut" id="thrinfo"></span>
       </div>
       <div class="row">
-        <button class="pri" id="save" title="Salva il lavoro in un file partita.json (Ctrl+S)">Salva</button>
+        <button class="pri" id="save" title="Salva il lavoro nel file .json della partita (Ctrl+S)">Salva</button>
         <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
         <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
         <button id="opendir" hidden title="Scegli la cartella della partita: carica il lavoro salvato e il video della sottocartella video">Apri cartella partita&hellip;</button>
@@ -218,7 +218,7 @@ button.on{outline:2px solid var(--acc)}
         <button id="pick">Scegli il video&hellip;</button>
         <input type="file" id="file" accept="video/*,.mp4,.m4v,.mov,.mkv,.webm,application/octet-stream" hidden>
         <button id="reset" title="Torna alla proposta automatica">Ripristina originale</button>
-        <button id="compact" title="A revisione finita: crea un video con le sole clip tenute (piu' 2 s per lato) e il suo partita.json, per occupare meno spazio">Compatta video&hellip;</button>
+        <button id="compact" title="A revisione finita: crea un video con le sole clip tenute (piu' 2 s per lato) e il suo json, per occupare meno spazio">Compatta video&hellip;</button>
         <button id="gocine" title="Video grande con l'elenco delle clip a destra">Vista cinema</button>
         <button id="gosv" title="Fai lo scout guardando il video: ogni tocco resta legato al suo istante">Scout nella pagina</button>
         <button id="fprev" title="Fotogramma precedente (virgola o Alt+freccia sinistra)">&#9664;|</button>
@@ -2286,7 +2286,7 @@ $("compact").onclick = () => {
     "), con 2 secondi prima e dopo ciascuna, a 8 Mbit/s." + NL + NL +
     "Da fare a revisione finita: nel video compatto le azioni scartate non ci sono piu' e le clip non si possono allargare oltre i 2 secondi." + NL + NL +
     "Scarico compatta.json e compatta.bat: mettili nella cartella della partita (o in export) e fai doppio clic su compatta.bat." + NL +
-    "Il video originale e il partita.json non vengono toccati: il risultato va nella sottocartella compatto.")) return;
+    "Il video originale e il suo json non vengono toccati: il risultato va nella sottocartella compatto.")) return;
   download("compatta.json", toJSON(loadedRev), "application/json");
   const J = '"%~dp0compatta.json"', opt = " --compact " + J + " --margin 2 --bitrate 8";
   const lines = D.cli.script && D.cli.match ? ["python " + q(D.cli.script) + " --match " + q(D.cli.match) + opt] : [
@@ -2590,7 +2590,7 @@ async function saveFile(asNew) {
   let rev = loadedRev + 1;
   if (window.showSaveFilePicker) {
     try {
-      if (!fh || asNew) { fh = await showSaveFilePicker({ suggestedName: "partita.json", types: JSON_TYPES }); }
+      if (!fh || asNew) { fh = await showSaveFilePicker({ suggestedName: projectFileName(), types: JSON_TYPES }); }
       else {                                                         // il file e' cambiato da quando l'ho aperto? (altro PC, OneDrive)
         try {
           const cur = JSON.parse(await (await fh.getFile()).text()), r = +(cur.meta && cur.meta.revision || 0);
@@ -2606,10 +2606,21 @@ async function saveFile(asNew) {
     } catch (e) { if (e.name === "AbortError") return; fh = null; }   // altrimenti: scarica
   }
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([toJSON(rev)], { type: "application/json" }));
-  a.download = "partita.json"; a.click();
+  const fname = projectFileName();
+  a.download = fname; a.click();
   loadedRev = rev; lastSave = hhmm(); markDirty(false);
-  alert("Il browser non permette di scegliere la cartella: il file e' stato scaricato come partita.json\n" +
+  alert("Il browser non permette di scegliere la cartella: il file e' stato scaricato come " + fname + "\n" +
         "(nella cartella Download). Spostalo in quella dei risultati.");
+}
+// nome proposto per salvare: quello del file aperto, poi <cartella>.json, poi la data, infine partita.json
+let OPENED_NAME = "", MATCHMETA = null;
+function projectFileName() {
+  if (/\.json$/i.test(OPENED_NAME) && OPENED_NAME.toLowerCase() !== "partita.json") return OPENED_NAME;
+  const dir = ((D.cli && D.cli.match) || "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+  if (dir) return dir + ".json";
+  const vn = D.video_name || "", a = /(\d{4}-\d{2}-\d{2})/.exec(vn), b = /(20\d{2})(\d{2})(\d{2})/.exec(vn);
+  const day = a ? a[1] : b ? b[1] + "-" + b[2] + "-" + b[3] : "";
+  return day ? day + ".json" : "partita.json";
 }
 function loadText(text, name) {
   let d;
@@ -2620,6 +2631,8 @@ function loadText(text, name) {
   else if (pj) { ["threshold", "motion", "motion_bin", "motion_max", "cells", "zones", "seg", "fps", "court"].forEach(k => { if (k in pj) D[k] = pj[k]; }); D.deleted = pj.deleted || []; thrPrev = null; }
   else if (D.empty) { alert("Questo file non contiene i dati della partita (movimento, fischi). Aprilo da review.html, salva, e poi riaprilo qui."); return false; }
   loadedRev = +(d.meta && d.meta.revision || 0);
+  if (name) OPENED_NAME = String(name);
+  MATCHMETA = (d.meta && d.meta.match) || null;
   R = d.rallies.map(r => Object.assign({ confidence: 1, confidence_level: "alta", dubious: false, reasons: [], whistle: null, keep: true, tag: "" },
     r, { start: +r.start, end: +r.end, reasons: r.reasons || [] }));
   normEdited(R);
@@ -2642,7 +2655,9 @@ async function openFolder() {
   try { dir = await showDirectoryPicker({ mode: "readwrite" }); } catch (e) { return; }
   const jsons = [];
   for await (const [name, h] of dir.entries()) if (h.kind === "file" && /\.json$/i.test(name) && !/prima_d/i.test(name)) jsons.push(h);
-  let jh = jsons.find(h => h.name === "partita.json");
+  const jNew = jsons.find(h => h.name === dir.name + ".json"), jOld = jsons.find(h => h.name === "partita.json");
+  if (jNew && jOld) { alert("Nella cartella ci sono sia partita.json sia " + jNew.name + ": tieni quello giusto e sposta l'altro, poi riapri."); return; }
+  let jh = jNew || jOld;
   if (!jh && jsons.length) { const withT = await Promise.all(jsons.map(async h => [h, (await h.getFile()).lastModified])); jh = withT.sort((x, y) => y[1] - x[1])[0][0]; }
   if (jh) { const f = await jh.getFile(); if (loadText(await f.text(), jh.name)) fh = jh; status(); }
   else if (!confirm("Nella cartella non c'e' nessun file .json di lavoro. Carico solo il video?")) return;
@@ -3979,7 +3994,9 @@ function openMatchDlg(first) {
   const sc = SCOUT_IMP && SCOUT_IMP.dv && SCOUT_IMP.dv.x ? SCOUT_IMP : null;
   const scRoster = sc ? rosterFromRaw(sc.dv.x.raw[sc.side === "loc" ? "3PLAYERS-H" : "3PLAYERS-V"]) : [];
   const day = (/(\d{4}-\d{2}-\d{2})/.exec((D.cli && D.cli.match) || D.video_name || "") || [])[1] || new Date().toISOString().slice(0, 10);
-  const m = LIVE || { date: day, time: "", home: sc ? sc.side === "loc" : true, us: sc ? sc.team.replace(/^(Locali|Ospiti):\s*/, "") : "", them: "", roster: scRoster };
+  const MM = MATCHMETA || {};                       // meta.match: data, avversario e casa/trasferta scritti dall'app alla partita nuova
+  const m = LIVE || { date: MM.date || day, time: "", home: typeof MM.home === "boolean" ? MM.home : sc ? sc.side === "loc" : true,
+    us: sc ? sc.team.replace(/^(Locali|Ospiti):\s*/, "") : "", them: MM.opponent || "", roster: scRoster };
   $("lmdate").value = m.date || ""; $("lmtime").value = (m.time || "").replace(/\.00$/, "");
   document.querySelector('input[name=lmha][value="' + (m.home !== false ? 1 : 0) + '"]').checked = true;
   $("lmus").value = m.us || ""; $("lmthem").value = m.them || "";
