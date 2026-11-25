@@ -2,12 +2,14 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
+<meta name="vsv-versione" content="20261125-2148">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
 :root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#d9d8d0;--ok:#2e8b3d;--dub:#e08a00;--off:#9a9a94;--acc:#1f6feb;--whi:#e6b800;--mov:#4a78b8}
 @media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#eceae3;--mut:#9b9a92;--card:#201f1d;--line:#3a3935;--ok:#4cb85c;--dub:#f0a020;--off:#6f6f69;--acc:#5b9bff;--whi:#f2c94c;--mov:#7aa2d6}}
 *{box-sizing:border-box}
+body.inapp .webonly{display:none}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,Segoe UI,sans-serif;display:flex;flex-direction:column;overflow:hidden}
 #top{flex:none;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px}
@@ -210,6 +212,7 @@ button.on{outline:2px solid var(--acc)}
         <span class="mut" id="thrinfo"></span>
       </div>
       <div class="row">
+        <button id="appback" hidden title="Torna all'elenco delle partite">&larr; Partite</button>
         <button class="pri" id="save" title="Salva il lavoro nel file .json della partita (Ctrl+S)">Salva</button>
         <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
         <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
@@ -445,10 +448,10 @@ button.on{outline:2px solid var(--acc)}
   <label><input type="radio" name="dm" value="fast" checked> veloce: copia diretta, pochi secondi (la clip puo' iniziare fino a ~1 s prima, a seconda dei fotogrammi chiave del video)</label>
   <label><input type="radio" name="dm" value="precise"> precisa: ricodifica, tagli esatti al fotogramma ma molto piu' lenta (circa 0,4 s per ogni secondo di video)</label>
   <label><input type="radio" name="dm" value="phone"> smartphone / WhatsApp: come la precisa, ma a 720p e circa 2,4 Mbit/s (un minuto ~18 MB). Su WhatsApp i video oltre ~2-3 minuti conviene mandarli come documento, cosi' non vengono ricompressi</label>
-  <div class="row"><button class="pri" id="dmake">Scarica i file</button><button id="dcopy">Copia il comando</button><button id="dclose">Chiudi</button></div>
-  <p class="mut">Vengono scaricati <b>nome.json</b> (la selezione) e <b>nome.bat</b>. Mettili nella stessa cartella e
+  <div class="row"><button class="pri" id="dmake">Scarica i file</button><button id="dcopy" class="webonly">Copia il comando</button><button id="dclose">Chiudi</button></div>
+  <p class="mut webonly">Vengono scaricati <b>nome.json</b> (la selezione) e <b>nome.bat</b>. Mettili nella stessa cartella e
     fai doppio clic su nome.bat: il minivideo compare in export/minivideo/<nome>/ nella cartella della partita. Il video principale non viene toccato. Se la pagina e' quella online serve la variabile di ambiente <b>VOLLEYCUT</b> (cartella che contiene volley_cut.py); il .bat funziona anche dentro la sottocartella export.</p>
-  <textarea readonly id="dcmd" rows="4"></textarea>
+  <textarea readonly id="dcmd" rows="4" class="webonly"></textarea>
 </dialog>
 <dialog id="tchdlg">
   <h2>Scout della clip</h2>
@@ -2261,9 +2264,16 @@ $("dname").oninput = miniState;
 document.querySelectorAll("input[name=dm]").forEach(e => e.onchange = miniState);
 $("dclose").onclick = () => $("dlg").close();
 $("dcopy").onclick = () => { $("dcmd").select(); try { navigator.clipboard.writeText($("dcmd").value); } catch (e) { document.execCommand("copy"); } };
-$("dmake").onclick = () => {
+$("dmake").onclick = async () => {
   const { name, mode } = miniState();
   const rs = miniSel().map((r, i) => Object.assign({}, r, { n: i + 1, keep: true, dubious: false, duration: r.end - r.start }));
+  if (APP() && APP_MATCH) {
+    const r = await APP().run_minivideo(APP_MATCH.folder, APP_MATCH.compatto, name, mode,
+      JSON.stringify({ meta: Object.assign({}, D.meta, { minivideo: name }), rallies: rs }));
+    if (r && r.error) { alert(r.error); return; }
+    $("dlg").close(); alert("Minivideo avviato: l'avanzamento e' nella schermata delle partite. Il file comparira' in export/minivideo/" + name + "/.");
+    return;
+  }
   download(name + ".json", JSON.stringify({ meta: Object.assign({}, D.meta, { minivideo: name }), rallies: rs }, null, 2), "application/json");
   // la pagina online non conosce il percorso di volley_cut.py: il .bat usa la variabile VOLLEYCUT e trova da solo la cartella
   // della partita (anche se il file e' stato messo in una sua sottocartella, per esempio export)
@@ -2285,8 +2295,13 @@ $("compact").onclick = () => {
   if (!confirm("Video compatto: restano le " + k.length + " clip con Tieni (" + (tot / 60).toFixed(1) + " min su " + (DUR / 60).toFixed(1) +
     "), con 2 secondi prima e dopo ciascuna, a 8 Mbit/s." + NL + NL +
     "Da fare a revisione finita: nel video compatto le azioni scartate non ci sono piu' e le clip non si possono allargare oltre i 2 secondi." + NL + NL +
-    "Scarico compatta.json e compatta.bat: mettili nella cartella della partita (o in export) e fai doppio clic su compatta.bat." + NL +
+    (APP() && APP_MATCH ? "La compattazione parte nell'app: l'avanzamento e' nella schermata delle partite." + NL :
+    "Scarico compatta.json e compatta.bat: mettili nella cartella della partita (o in export) e fai doppio clic su compatta.bat." + NL) +
     "Il video originale e il suo json non vengono toccati: il risultato va nella sottocartella compatto.")) return;
+  if (APP() && APP_MATCH) {
+    APP().run_compact(APP_MATCH.folder, toJSON(loadedRev)).then(r => { if (r && r.error) alert(r.error); });
+    return;
+  }
   download("compatta.json", toJSON(loadedRev), "application/json");
   const J = '"%~dp0compatta.json"', opt = " --compact " + J + " --margin 2 --bitrate 8";
   const lines = D.cli.script && D.cli.match ? ["python " + q(D.cli.script) + " --match " + q(D.cli.match) + opt] : [
@@ -2588,6 +2603,17 @@ async function saveFile(asNew) {
   if (MOBILE) { alert("Su telefono il salvataggio e' disattivato: salva dal computer."); return; }
   if (D.empty) { alert("Apri prima una partita (pulsante Apri...)."); return; }
   let rev = loadedRev + 1;
+  if (APP() && APP_MATCH && !asNew) {                               // app residente: scrive direttamente nella cartella della partita
+    let r = await APP().save_json(APP_MATCH.folder, APP_MATCH.compatto, toJSON(rev), loadedRev, false);
+    if (r && r.conflict) {
+      if (!confirm("Il file e' stato salvato da un'altra parte dopo che lo hai aperto (revisione " + r.revision_su_disco + ", la tua " + loadedRev +
+                   ").\nSovrascriverlo con il tuo lavoro? Annulla per non perdere quello degli altri.")) return;
+      rev = r.revision_su_disco + 1;
+      r = await APP().save_json(APP_MATCH.folder, APP_MATCH.compatto, toJSON(rev), loadedRev, true);
+    }
+    if (!r || r.error) { alert((r && r.error) || "Salvataggio non riuscito."); return; }
+    loadedRev = rev; lastSave = hhmm(); markDirty(false); status(); return;
+  }
   if (window.showSaveFilePicker) {
     try {
       if (!fh || asNew) { fh = await showSaveFilePicker({ suggestedName: projectFileName(), types: JSON_TYPES }); }
@@ -2622,6 +2648,21 @@ function projectFileName() {
   const day = a ? a[1] : b ? b[1] + "-" + b[2] + "-" + b[3] : "";
   return day ? day + ".json" : "partita.json";
 }
+// ---- app residente (VideoScout Volley per Windows): apre la partita dalla cartella, salva li' e lancia le operazioni
+const APP = () => (window.pywebview && window.pywebview.api && window.pywebview.api.save_json ? window.pywebview.api : null);
+let APP_MATCH = null, appStarted = false;
+async function appStart() {
+  if (appStarted || !APP()) return;
+  appStarted = true;
+  document.body.classList.add("inapp"); $("appback").hidden = false;
+  const q = new URLSearchParams(location.search), folder = q.get("partita");
+  if (!folder) return;
+  const o = await APP().open_match(folder, q.get("compatto") === "1");
+  if (!o || o.error) { alert((o && o.error) || "Partita non trovata."); return; }
+  if (loadText(o.json_text, o.json_name)) { APP_MATCH = { folder, compatto: !!o.compatto }; v.src = o.video_url; status(); }
+}
+window.addEventListener("pywebviewready", appStart);
+setTimeout(appStart, 0);                                            // se l'app era gia' pronta l'evento e' gia' passato
 function loadText(text, name) {
   let d;
   try { d = JSON.parse(text); if (!Array.isArray(d.rallies)) throw 0; } catch (e) { alert("File non valido: non e' un rallies.json."); return false; }
@@ -2672,6 +2713,10 @@ async function openFolder() {
 if (window.showDirectoryPicker) $("opendir").hidden = false;
 $("opendir").onclick = openFolder;
 $("save").onclick = () => saveFile(false);
+$("appback").onclick = () => {
+  if (dirty && !confirm("Ci sono modifiche non salvate. Tornare alle partite e perderle?")) return;
+  dirty = false; location.href = "home.html";
+};
 $("saveas").onclick = () => saveFile(true);
 $("open").onclick = openFile;
 $("jfile").onchange = async e => { const f = e.target.files[0]; if (f) { loadText(await f.text(), f.name); fh = null; status(); } e.target.value = ""; };
