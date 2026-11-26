@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-1730">
+<meta name="vsv-versione" content="20261126-1917">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -568,7 +568,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
     <div class="mseg" id="mobtabs"><button data-t="video" class="on">Video</button><button data-t="stat" id="mobtabstat">Statistiche</button></div>
     <div id="mobvideo">
       <div id="mobvid"></div>
-      <div id="mobnovid" hidden><span class="mut">Il video non c'&egrave;.</span> <button id="mobvpick">Scegli il video</button></div>
+      <div id="mobnovid" hidden><span class="mut">Il video non c'&egrave;.</span> <button id="mobvpick">Scegli il video</button> <button id="mobvlink">Link del video su OneDrive</button></div>
       <div id="mobctl"><button id="mobprev" title="Clip precedente">&#9198;</button><button id="mobplay" class="pri">&#9654;</button><button id="mobnext" title="Clip successiva">&#9197;</button><button id="mobspeed">1x</button></div>
       <div id="mobseq"></div>
       <div id="mobsum"><button id="mobfbtn">Filtri</button><span id="mobsumtxt"></span><span id="mobcount" class="mut"></span></div>
@@ -3264,7 +3264,8 @@ async function openOneDrive() {
   if (!loadText(text, name)) return;
   fh = null; OD_OPENED = true; status();
   maybeStream();
-  if (!D.video_link) alert("Partita aperta. In questo .json non c'e' il link del video: usa \"Video su OneDrive...\" oppure \"Scegli il video...\".");
+  if (!D.video_link) alert(window.MOBON ? "Partita aperta. In questo .json non c'e' il link del video: usa \"Link del video su OneDrive\" oppure \"Scegli il video\"."
+    : "Partita aperta. In questo .json non c'e' il link del video: usa \"Video su OneDrive...\" oppure \"Scegli il video...\".");
 }
 $("odopen").onclick = openOneDrive;
 $("vstream").onclick = streamVideo;
@@ -4923,6 +4924,13 @@ if (MOB) {
   $("mobfile").onclick = () => $("jfile").click();
   $("mobopen").onclick = () => { v.pause(); $("mobstart").hidden = false; $("mobmain").hidden = true; };
   $("mobvpick").onclick = () => $("file").click();
+  $("mobvlink").onclick = () => {                                  // solo per questa volta: dal telefono non si salva
+    const s = prompt("Incolla il link condiviso del video su OneDrive.\n(Su OneDrive: Condividi -> \"Chiunque abbia il link\" -> Copia link.)\nPer averlo sempre, collegalo dal computer con \"Video su OneDrive...\" e salva.");
+    if (s === null || !s.trim()) return;
+    const u = odStreamUrl(s);
+    if (!u) { alert("Questo non e' un link condiviso di OneDrive personale: deve cominciare con https://1drv.ms/v/c/..."); return; }
+    window.mobUseSrc(u);
+  };
   $("mobfull").onclick = $("mobfull0").onclick = e => { e.preventDefault(); mobSetView("completa"); };
   $("mobtabs").onclick = e => { const b = e.target.closest("button"); if (b) mobTab(b.dataset.t); };
 } else if (MOBILE) {
@@ -4931,6 +4939,7 @@ if (MOB) {
 }
 // scheda Video: elenco (tocchi se lo scout ha gli istanti, altrimenti clip con Tieni), scout dell'azione, comandi
 window.mobTchAvail = () => tchAvail();
+window.mobUseSrc = u => { v.src = u; };
 var MOBL = [], MOBI = -1, MOBSEQ = [];
 function mobList() {
   if (window.mobTchAvail()) return tchList().map(w => ({ start: w.start, end: w.end, p: w.p, tch: w.tch }));
