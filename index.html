@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261125-2256">
+<meta name="vsv-versione" content="20261126-0726">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -10,6 +10,16 @@
 @media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#eceae3;--mut:#9b9a92;--card:#201f1d;--line:#3a3935;--ok:#4cb85c;--dub:#f0a020;--off:#6f6f69;--acc:#5b9bff;--whi:#f2c94c;--mov:#7aa2d6}}
 *{box-sizing:border-box}
 body.inapp .webonly{display:none}
+dialog.stdlg{max-width:min(1200px,96vw);width:96vw;max-height:92vh}
+.stdlg .sthead{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.stdlg .sthead h2{margin:0}.stdlg .grow{flex:1}
+.stdlg .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}.stdlg .seg button{border:0;border-radius:0}.stdlg .seg button.on{background:var(--acc);color:#fff}
+.stdlg table{border-collapse:collapse;margin:6px 0 14px}.stdlg th,.stdlg td{padding:3px 7px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.stdlg th:first-child,.stdlg td:first-child{text-align:left}.stdlg th{font-size:12px;color:var(--mut);font-weight:600}
+.stdlg h3{font-size:14px;margin:12px 0 2px}.stdlg .pc{color:var(--mut);font-size:11px;margin-left:3px}
+.stdlg td[data-st]{cursor:pointer}.stdlg td[data-st]:hover{background:color-mix(in srgb,var(--acc) 15%,transparent);text-decoration:underline}
+.stdlg .bar{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-left:4px}
+.stdlg .neg{color:#d9534f}.stdlg .pos{color:var(--ok)}.stdlg .worst{background:color-mix(in srgb,#d9534f 18%,transparent)}
+.stdlg .stwrap{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,Segoe UI,sans-serif;display:flex;flex-direction:column;overflow:hidden}
 #top{flex:none;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px}
@@ -268,6 +278,7 @@ button.on{outline:2px solid var(--acc)}
     <button class="sm" id="scnot" title="Questa clip non e' un rally dello scout: la scollega e anticipa le successive">non e' un punto</button>
     <button class="sm" id="scdet" title="Scollega solo questa clip">scollega</button>
     <button class="sm" id="screp">Rapporto&hellip;</button>
+    <button class="sm" id="scstat" title="Statistiche come in Volley Coach: ogni numero si clicca e partono le clip di quei tocchi">Statistiche&hellip;</button>
   </div>
   <div class="row" id="scflt" hidden>
     <span class="mut">Filtra le clip per scout:</span>
@@ -463,6 +474,13 @@ button.on{outline:2px solid var(--acc)}
   <div id="sbody"></div>
   <div class="row"><button class="pri" id="sclose">Chiudi</button>
     <button id="sexp" hidden title="Riscrive lo scout in un file .dvw da importare in Volleyball Scout">Esporta .dvw</button></div>
+</dialog>
+<dialog id="stdlg" class="stdlg">
+  <div class="row sthead"><h2>Statistiche</h2>
+    <span class="seg" id="sttabs"><button data-t="partita" class="on">Partita</button><button data-t="catene">Catene</button><button data-t="stagione">Stagione</button></span>
+    <select id="stset" title="Set"></select><select id="stpl" title="Atleta"></select>
+    <span class="mut">Clic su un numero: partono le clip di quei tocchi.</span><span class="grow"></span><button class="pri" id="stclose">Chiudi</button></div>
+  <div id="stbody"></div>
 </dialog>
 <dialog id="zdlg" style="max-width:780px">
   <h2>Zone dove si gioca</h2>
@@ -1659,6 +1677,125 @@ const ScoutLib = (function () {
 
 if (typeof module !== "undefined" && module.exports) module.exports = ScoutLib;
 
+// Statistiche dello scout, con lo schema e le formule di Volley Coach (Alberto, 9 e 18/11/2026).
+// Il "#" di Volley Coach e' il "++" di VideoScout Volley. Il pallonetto conta come attacco (come nel .dvw).
+// Positivita' = (++ e +) / tot. Efficienza: battuta e muro (++ - =) / tot; attacco (++ - = - /) / tot;
+// ricezione, difesa, alzata (++ + + - =) / tot.
+const StatsLib = (() => {
+  const VOTES = ["++", "+", "!", "-", "/", "="];
+  const FUNDS = ["battuta", "ricezione", "alzata", "attacco", "difesa", "muro"];
+  const LABEL = { battuta: "Battuta", ricezione: "Ricezione", alzata: "Alzata", attacco: "Attacco", difesa: "Difesa", muro: "Muro" };
+  const TIPI = { battuta: ["Battuta"], ricezione: ["Ricezione"], alzata: ["Alzata"], attacco: ["Attacco", "Pallonetto"], difesa: ["Difesa"], muro: ["Muro"] };
+  const FUND_OF = { Battuta: "battuta", Ricezione: "ricezione", Alzata: "alzata", Attacco: "attacco", Pallonetto: "attacco", Difesa: "difesa", Muro: "muro" };
+  const PLUS_COUNTS = new Set(["ricezione", "difesa", "alzata"]);
+
+  const fundOf = tipo => FUND_OF[tipo] || null;
+  const empty = () => { const c = { tot: 0 }; VOTES.forEach(v => { c[v] = 0; }); return c; };
+  const add = (c, voto) => { if (voto in c) { c[voto]++; c.tot++; } return c; };
+  const counts = touches => touches.reduce((c, t) => add(c, t.voto), empty());
+  const positivity = c => (c.tot ? (c["++"] + c["+"]) / c.tot : null);
+  function efficiency(c, fund) {
+    if (!c.tot) return null;
+    const good = PLUS_COUNTS.has(fund) ? c["++"] + c["+"] : c["++"];
+    const bad = fund === "attacco" ? c["="] + c["/"] : c["="];
+    return (good - bad) / c.tot;
+  }
+  const playerKey = t => (t.cognome || "") + "|" + t.numero;
+  const into = (obj, k, f) => (obj[k] || (obj[k] = {}))[f] || (obj[k][f] = empty());
+
+  // l'attacco nasce da una ricezione o da una difesa: l'ultima prima di lui nel punto, senza un nostro attacco in mezzo
+  function attackOrigin(touches, i) {
+    for (let j = i - 1; j >= 0; j--) {
+      const f = fundOf(touches[j].tipo);
+      if (f === "attacco") return null;
+      if (f === "ricezione") return "ric";
+      if (f === "difesa") return "dif";
+    }
+    return null;
+  }
+
+  // origine del punto dall'ultimo nostro tocco (regole di scout_points.dart di Volley Coach)
+  function pointSource(p, side) {
+    const ts = p.touches || [], a = ts.length ? ts[ts.length - 1] : null, f = a ? fundOf(a.tipo) : null;
+    if (p.winner === side) {
+      if (a && a.voto === "++" && f === "battuta") return "ace";
+      if (a && a.voto === "++" && f === "attacco") return "attacco";
+      if (a && a.voto === "++" && f === "muro") return "muro";
+      return "erroriAvversari";
+    }
+    if (!p.winner) return null;
+    if (a && f === "attacco" && a.voto === "/") return "murati";
+    if (a && (a.voto === "=" || (f === "muro" && a.voto === "/"))) return "nostriErrori";
+    return "puntiLoro";
+  }
+
+  // opts: { set, player (cognome|numero), rot (P1..P6) } per restringere
+  function matchStats(points, side, opts) {
+    const o = opts || {};
+    const team = {}, byPlayer = {}, byRot = {}, attRic = empty(), attDif = empty(), names = {};
+    const sources = { ace: 0, attacco: 0, muro: 0, erroriAvversari: 0, nostriErrori: 0, murati: 0, puntiLoro: 0 };
+    FUNDS.forEach(f => { team[f] = empty(); });
+    for (const p of points) {
+      if (o.set != null && String(p.set) !== String(o.set)) continue;
+      const ts = p.touches || [];
+      ts.forEach((t, i) => {
+        const f = fundOf(t.tipo);
+        if (!f) return;
+        const rot = t.posP || p.rot || "";
+        if (o.rot && rot !== o.rot) return;
+        const pk = playerKey(t);
+        if (o.player && pk !== o.player) return;
+        add(team[f], t.voto);
+        if (t.numero !== null && t.numero !== undefined) { add(into(byPlayer, pk, f), t.voto); names[pk] = { cognome: t.cognome || "", numero: t.numero }; }
+        if (rot) add(into(byRot, rot, f), t.voto);
+        if (f === "attacco") {
+          const org = attackOrigin(ts, i);
+          if (org === "ric") add(attRic, t.voto); else if (org === "dif") add(attDif, t.voto);
+        }
+      });
+      if (!o.player && !o.rot) { const s = pointSource(p, side); if (s) sources[s]++; }
+    }
+    const box = Object.keys(byPlayer).map(k => {
+      const g = f => byPlayer[k][f] || empty();
+      return { key: k, cognome: names[k].cognome, numero: names[k].numero,
+        punti: g("attacco")["++"] + g("battuta")["++"] + g("muro")["++"],
+        errori: FUNDS.reduce((s, f) => s + g(f)["="], 0) + g("attacco")["/"] };
+    }).sort((a, b) => (+a.numero || 0) - (+b.numero || 0));
+    return { team, byPlayer, byRot, attRic, attDif, sources, box };
+  }
+
+  // catene: attacco per voto dell'alzata che lo precede; alzata per voto della ricezione/difesa che la precede
+  function chains(points, opts) {
+    const o = opts || {};
+    const attByAlzata = {}, alzByFirst = { Ricezione: {}, Difesa: {} };
+    const cell = (obj, k) => obj[k] || (obj[k] = empty());
+    for (const p of points) {
+      if (o.set != null && String(p.set) !== String(o.set)) continue;
+      const ts = p.touches || [];
+      for (let i = 1; i < ts.length; i++) {
+        const a = ts[i - 1], b = ts[i], fa = fundOf(a.tipo), fb = fundOf(b.tipo);
+        if (o.player && playerKey(b) !== o.player) continue;
+        if (fa === "alzata" && fb === "attacco") add(cell(attByAlzata, a.voto), b.voto);
+        if ((fa === "ricezione" || fa === "difesa") && fb === "alzata") add(cell(alzByFirst[LABEL[fa]], a.voto), b.voto);
+      }
+    }
+    return { attByAlzata, alzByFirst };
+  }
+
+  function worstRotation(byRot, fund) {
+    let worst = null, wv = 0;
+    for (const r of Object.keys(byRot).sort()) {
+      const c = byRot[r][fund];
+      const e = c ? efficiency(c, fund) : null;
+      if (e !== null && e < wv) { wv = e; worst = r; }
+    }
+    return worst;
+  }
+
+  return { VOTES, FUNDS, LABEL, TIPI, fundOf, counts, positivity, efficiency, matchStats, chains, worstRotation, pointSource, empty };
+})();
+if (typeof module !== "undefined" && module.exports) module.exports = StatsLib;
+
 // Segmentazione dei rally da fischi e movimento: stessa logica di volleycut/segmentation.py,
 // sulle misure di movimento a intervalli (il massimo di ogni secondo salvato nella pagina).
 // Funzioni pure. Non deve contenere la sequenza di chiusura dello script.
@@ -2432,6 +2569,181 @@ window.addEventListener("resize", () => mselClose());
 document.addEventListener("scroll", e => { if (!(e.target.closest && e.target.closest(".mlist"))) document.querySelectorAll("details.msel[open]").forEach(mselPlace); }, true);
 $("fnxdir").onchange = () => { const v = $("fnxdir").value; FLT.dir = v === "next" ? [] : [v]; if (FLT.nskill.length || FLT.ngrade.length || FLT.ntag.length) applyFilters(); };
 $("fclear").onclick = () => { fltReset(); fillFilters(); applyFilters(); };
+
+// ---- statistiche (schema e formule di Volley Coach; ogni numero porta ai tocchi)
+const SL = StatsLib;
+let STTAB = "partita", STSEASON = null;
+const pctS = x => (x === null || x === undefined ? "&mdash;" : Math.round(x * 100) + "%");
+const effCls = x => (x === null ? "" : x < 0 ? "neg" : x > 0.15 ? "pos" : "");
+const stAttr = f => " data-st='" + esc(JSON.stringify(f)) + "'";
+function stCell(n, f, tot) {
+  return "<td" + (n ? stAttr(f) : "") + ">" + n + (tot ? '<span class="pc">' + Math.round(n * 100 / tot) + "%</span>" : "") + "</td>";
+}
+function stBar(x) {
+  if (x === null) return "";
+  const w = Math.round(Math.min(1, Math.abs(x)) * 40);
+  return '<span class="bar" style="width:' + w + "px;background:" + (x < 0 ? "#d9534f" : "var(--ok)") + '"></span>';
+}
+function stOpts() {
+  const o = {};
+  if ($("stset").value) o.set = $("stset").value;
+  if ($("stpl").value) o.player = $("stpl").value;
+  return o;
+}
+function stBase() {                                   // filtri che valgono per ogni clic: set e atleta scelti in alto
+  const o = stOpts(), f = {};
+  if (o.set) f.set = [o.set];
+  if (o.player) f.player = [o.player];
+  return f;
+}
+function gradesRow(label, c, fund, tipi, extra) {
+  const base = Object.assign(stBase(), { skill: tipi }, extra || {});
+  return "<tr><td" + (c.tot ? stAttr(base) : "") + "><b>" + label + "</b></td>" + stCell(c.tot, base) +
+    SL.VOTES.map(v => stCell(c[v], Object.assign({}, base, { grade: [v] }), c.tot)).join("") +
+    "<td>" + pctS(SL.positivity(c)) + stBar(SL.positivity(c)) + '</td><td class="' + effCls(SL.efficiency(c, fund)) + '">' + pctS(SL.efficiency(c, fund)) + "</td></tr>";
+}
+function stPartita() {
+  const m = SL.matchStats(SCOUT.points, SCOUT.side, stOpts());
+  const hd = "<tr><th>Fondamentale</th><th>Tot</th>" + SL.VOTES.map(v => "<th>" + v + "</th>").join("") + "<th>Positivit&agrave;</th><th>Efficienza</th></tr>";
+  let h = "";
+  if (!stOpts().player) {
+    const sets = (SCOUT.sets || []).map(x => "Set " + x.set + " " + x.final[SCOUT.side === "loc" ? 0 : 1] + "-" + x.final[SCOUT.side === "loc" ? 1 : 0]).join(" &middot; ");
+    const S0 = m.sources, made = S0.ace + S0.attacco + S0.muro + S0.erroriAvversari, lost = S0.nostriErrori + S0.murati + S0.puntiLoro;
+    h += '<p class="mut">' + sets + "</p><div class=\"stwrap\"><table><tr><th>Punti fatti</th><th>" + made + "</th></tr>" +
+      [["Ace", S0.ace], ["Attacco", S0.attacco], ["Muro", S0.muro], ["Errori avversari", S0.erroriAvversari]].map(x => "<tr><td>" + x[0] + "</td><td>" + x[1] + "</td></tr>").join("") +
+      "</table><table><tr><th>Punti persi</th><th>" + lost + "</th></tr>" +
+      [["Nostri errori", S0.nostriErrori], ["Murati", S0.murati], ["Punti loro", S0.puntiLoro]].map(x => "<tr><td>" + x[0] + "</td><td>" + x[1] + "</td></tr>").join("") + "</table></div>";
+  }
+  h += "<h3>Voti per fondamentale</h3><table>" + hd +
+    SL.FUNDS.map(f => gradesRow(SL.LABEL[f], m.team[f], f, SL.TIPI[f])).join("") +
+    gradesRow("Attacco dopo ricezione", m.attRic, "attacco", SL.TIPI.attacco, { nskill: ["Ricezione"], dir: ["before"] }) +
+    gradesRow("Attacco dopo difesa", m.attDif, "attacco", SL.TIPI.attacco, { nskill: ["Difesa"], dir: ["before"] }) + "</table>";
+  if (!stOpts().player) {
+    h += "<h3>Per atleta</h3><table><tr><th>Atleta</th>" + SL.FUNDS.map(f => "<th>" + SL.LABEL[f] + "<br>tot &middot; pos &middot; eff</th>").join("") + "<th>Punti</th><th>Errori</th></tr>" +
+      m.box.map(r => "<tr><td" + stAttr(Object.assign(stBase(), { player: [r.key] })) + ">#" + r.numero + " " + esc(r.cognome) + "</td>" + SL.FUNDS.map(f => {
+        const c = m.byPlayer[r.key][f];
+        if (!c || !c.tot) return "<td></td>";
+        return "<td" + stAttr(Object.assign(stBase(), { player: [r.key], skill: SL.TIPI[f] })) + ">" + c.tot + " &middot; " + pctS(SL.positivity(c)) + ' &middot; <span class="' + effCls(SL.efficiency(c, f)) + '">' + pctS(SL.efficiency(c, f)) + "</span></td>";
+      }).join("") + "<td>" + r.punti + "</td><td>" + r.errori + "</td></tr>").join("") + "</table>";
+  }
+  const rots = Object.keys(m.byRot).filter(r => /^P[1-6]$/.test(r)).sort();
+  if (rots.length) {
+    h += "<h3>Rotazioni (efficienza &middot; positivit&agrave;; in rosso la peggiore)</h3><table><tr><th>Rotazione</th>" + SL.FUNDS.map(f => "<th>" + SL.LABEL[f] + "</th>").join("") + "</tr>" +
+      rots.map(r => "<tr><td" + stAttr(Object.assign(stBase(), { rot: [r] })) + "><b>" + r + "</b></td>" + SL.FUNDS.map(f => {
+        const c = m.byRot[r][f];
+        if (!c || !c.tot) return "<td></td>";
+        const e = SL.efficiency(c, f);
+        return '<td class="' + (SL.worstRotation(m.byRot, f) === r ? "worst " : "") + effCls(e) + '"' + stAttr(Object.assign(stBase(), { rot: [r], skill: SL.TIPI[f] })) + ">" + pctS(e) + " &middot; " + pctS(SL.positivity(c)) + '<span class="pc">(' + c.tot + ")</span></td>";
+      }).join("") + "</tr>").join("") + "</table>";
+  }
+  return h;
+}
+function chainTable(title, byFirst, firstLabel, firstTipi, secondLabel, secondTipi, fund) {
+  const rows = SL.VOTES.filter(v => byFirst[v] && byFirst[v].tot);
+  if (!rows.length) return "<h3>" + title + '</h3><p class="mut">Nessun tocco.</p>';
+  return "<h3>" + title + "</h3><table><tr><th>" + firstLabel + "</th><th>Tot</th>" + SL.VOTES.map(v => "<th>" + secondLabel + " " + v + "</th>").join("") + "<th>Positivit&agrave;</th><th>Efficienza</th></tr>" +
+    rows.map(a => {
+      const c = byFirst[a], base = Object.assign(stBase(), { skill: secondTipi, nskill: firstTipi, ngrade: [a], dir: ["prev"] });
+      return "<tr><td><b>" + a + "</b></td>" + stCell(c.tot, base) + SL.VOTES.map(v => stCell(c[v], Object.assign({}, base, { grade: [v] }), c.tot)).join("") +
+        "<td>" + pctS(SL.positivity(c)) + '</td><td class="' + effCls(SL.efficiency(c, fund)) + '">' + pctS(SL.efficiency(c, fund)) + "</td></tr>";
+    }).join("") + "</table>";
+}
+function stCatene() {
+  const ch = SL.chains(SCOUT.points, stOpts());
+  return chainTable("Attacco per voto dell'alzata", ch.attByAlzata, "Alzata", ["Alzata"], "Attacco", SL.TIPI.attacco, "attacco") +
+    chainTable("Alzata dopo la ricezione", ch.alzByFirst.Ricezione, "Ricezione", ["Ricezione"], "Alzata", ["Alzata"], "alzata") +
+    chainTable("Alzata dopo la difesa", ch.alzByFirst.Difesa, "Difesa", ["Difesa"], "Alzata", ["Alzata"], "alzata");
+}
+// stagione: lo scout di ogni partita dal suo json (lo stesso che la pagina userebbe aprendola)
+function scoutFromMeta(meta) {
+  const live = meta && meta.live, imp = meta && meta.scout;
+  try {
+    if (live && !live.useImp) { const d = LV.scout(live); if (d.plist && d.plist.length) return ScoutLib.fromDvw(d.team, d.touchList, d.plist, [], d.dv); }
+    if (imp && imp.touchList && imp.touchList.length) return imp.plist ? ScoutLib.fromDvw(imp.team || "", imp.touchList, imp.plist, [], imp.dv) : ScoutLib.fromTouches(imp.team || "", imp.touchList, []);
+  } catch (e) { /* scout illeggibile: la partita resta fuori */ }
+  return null;
+}
+async function loadSeasonWeb() {
+  let dir;
+  try { dir = await showDirectoryPicker({ mode: "read" }); } catch (e) { return null; }
+  const out = [];
+  const readJson = async (d, names) => {
+    for (const n of names) { try { return JSON.parse(await (await (await d.getFileHandle(n)).getFile()).text()); } catch (e) { /* prossimo nome */ } }
+    return null;
+  };
+  for await (const [name, h] of dir.entries()) {
+    if (h.kind !== "directory" || !/^\d{4}-\d{2}-\d{2}/.test(name)) continue;
+    const comp = await h.getDirectoryHandle("compatto").catch(() => null);
+    const d = (comp && await readJson(comp, [name + "_compatto.json", "partita.json"])) || await readJson(h, [name + ".json", "partita.json"]);
+    if (d && d.meta) out.push({ folder: name, date: name.slice(0, 10), opponent: name.slice(11).replace(/-/g, " "), meta: d.meta, compatto: !!comp });
+  }
+  return out;
+}
+async function stSeasonLoad() {
+  $("stbody").innerHTML = '<p class="mut">Carico le partite della stagione&hellip;</p>';
+  let list = null;
+  if (APP() && APP().season_scouts) list = await APP().season_scouts();
+  else list = await loadSeasonWeb();
+  if (!list) { STSEASON = null; stRender(); return; }
+  STSEASON = list.map(x => Object.assign(x, { sc: scoutFromMeta(x.meta) })).filter(x => x.sc && x.sc.points.length)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  stRender();
+}
+function stStagione() {
+  if (!STSEASON) return '<p>Le statistiche della stagione mettono insieme tutte le partite della cartella della stagione.</p><button class="pri" id="stload">' +
+    (APP() ? "Carica le partite della stagione" : "Apri la cartella della stagione&hellip;") + "</button>";
+  const pl = $("stpl").value, tot = {};
+  SL.FUNDS.forEach(f => { tot[f] = SL.empty(); });
+  const rows = STSEASON.map(x => {
+    const m = SL.matchStats(x.sc.points, x.sc.side, pl ? { player: pl } : {});
+    SL.FUNDS.forEach(f => SL.VOTES.forEach(v => { tot[f][v] += m.team[f][v]; tot[f].tot += m.team[f][v]; }));
+    return '<tr data-open="' + esc(x.folder) + '"' + (x.compatto ? ' data-comp="1"' : "") + "><td>" + esc(x.date.slice(8, 10) + "/" + x.date.slice(5, 7)) + " " + esc(x.opponent) + "</td>" +
+      SL.FUNDS.map(f => { const c = m.team[f], e = SL.efficiency(c, f); return c.tot ? '<td class="' + effCls(e) + '">' + pctS(e) + " &middot; " + pctS(SL.positivity(c)) + '<span class="pc">(' + c.tot + ")</span></td>" : "<td></td>"; }).join("") + "</tr>";
+  });
+  return '<p class="mut">' + STSEASON.length + " partite" + (pl ? ", solo " + esc(pl.replace("|", " #")) : "") + ". In ogni casella: efficienza &middot; positivit&agrave; (tocchi)." +
+    (APP() ? " Clic su una partita per aprirla." : "") + '</p><table><tr><th>Partita</th>' + SL.FUNDS.map(f => "<th>" + SL.LABEL[f] + "</th>").join("") + "</tr>" + rows.join("") +
+    "<tr><td><b>Stagione</b></td>" + SL.FUNDS.map(f => { const c = tot[f], e = SL.efficiency(c, f); return c.tot ? '<td class="' + effCls(e) + '"><b>' + pctS(e) + " &middot; " + pctS(SL.positivity(c)) + '</b><span class="pc">(' + c.tot + ")</span></td>" : "<td></td>"; }).join("") + "</tr></table>";
+}
+function stFillSelects() {
+  const ss = $("stset"), sp = $("stpl"), cs = ss.value, cp = sp.value;
+  ss.innerHTML = '<option value="">tutti i set</option>' + [...new Set(SCOUT.points.map(p => p.set))].map(x => '<option value="' + x + '">Set ' + x + "</option>").join("");
+  const pl = new Map();
+  SCOUT.points.forEach(p => (p.touches || []).forEach(t => { if (SL.fundOf(t.tipo) && t.numero !== null) pl.set((t.cognome || "") + "|" + t.numero, "#" + t.numero + " " + (t.cognome || "")); }));
+  sp.innerHTML = '<option value="">tutta la squadra</option>' + [...pl].sort((a, b) => a[1].localeCompare(b[1], "it", { numeric: true })).map(x => '<option value="' + esc(x[0]) + '">' + esc(x[1]) + "</option>").join("");
+  ss.value = [...ss.options].some(o => o.value === cs) ? cs : ""; sp.value = [...sp.options].some(o => o.value === cp) ? cp : "";
+}
+function stRender() {
+  document.querySelectorAll("#sttabs button").forEach(b => b.classList.toggle("on", b.dataset.t === STTAB));
+  $("stset").hidden = STTAB === "stagione";
+  $("stbody").innerHTML = STTAB === "partita" ? stPartita() : STTAB === "catene" ? stCatene() : stStagione();
+  const ld = $("stload"); if (ld) ld.onclick = stSeasonLoad;
+}
+function showStats() {
+  if (!SCOUT || !SCOUT.points || !SCOUT.points.length) { alert("Nessuno scout con punti in questa partita."); return; }
+  stFillSelects(); stRender(); $("stdlg").showModal();
+}
+// clic su un numero: gli stessi filtri dei menu, poi la vista cinema sui tocchi (o sulle clip, se lo scout non ha gli istanti)
+function stGo(f) {
+  fltReset(); Object.assign(FLT, f);
+  $("stdlg").close(); fltFor = null; changed();
+  if (!cine) setCine(true);
+  if (tchAvail()) { $("cfilter").value = "tch"; sel = null; }
+  renderCine();
+  const pl = playlist(); if (pl.length && !sel) { sel = pl[0]; renderCine(); }
+}
+$("scstat").onclick = showStats;
+$("stclose").onclick = () => $("stdlg").close();
+$("sttabs").onclick = e => { const b = e.target.closest("button"); if (b) { STTAB = b.dataset.t; stRender(); } };
+$("stset").onchange = $("stpl").onchange = stRender;
+$("stbody").addEventListener("click", e => {
+  const td = e.target.closest("[data-st]");
+  if (td) { stGo(JSON.parse(td.dataset.st)); return; }
+  const tr = e.target.closest("tr[data-open]");
+  if (tr && APP()) {
+    if (dirty && !confirm("Ci sono modifiche non salvate. Aprire l'altra partita e perderle?")) return;
+    dirty = false; location.href = "index.html?partita=" + encodeURIComponent(tr.dataset.open) + (tr.dataset.comp ? "&compatto=1" : "");
+  }
+});
 
 // ---- etichette dallo scout
 function scoutTag(r, o) {
