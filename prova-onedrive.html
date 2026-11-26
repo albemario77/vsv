@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prova OneDrive</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--mut:#5b6474;--card:#fff;--bd:#d9dde4;--acc:#1f6feb;--ok:#1a7f37;--ko:#c62828}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e9ef;--mut:#9aa3b2;--card:#1d2128;--bd:#323844;--acc:#4c8dff;--ok:#3fb950;--ko:#ff6b6b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,Segoe UI,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}
+.mut{color:var(--mut)}
+section{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin:12px 0}
+h2{font-size:15px;margin:0 0 8px}
+input{font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);width:min(100%,380px)}
+button{font:inherit;padding:5px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;margin:2px 4px 2px 0}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+#path a{color:var(--acc);cursor:pointer}
+#list{list-style:none;padding:0;margin:6px 0 0;max-height:320px;overflow:auto;border-top:1px solid var(--bd)}
+#list li{padding:5px 4px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+#list li:hover{background:var(--bg)}
+#list .sz{color:var(--mut);white-space:nowrap}
+video{width:100%;max-height:60vh;background:#000;border-radius:6px;margin:8px 0}
+#log{white-space:pre-wrap;font:12.5px/1.4 Consolas,monospace;margin:0;max-height:300px;overflow:auto}
+.ok{color:var(--ok)}.ko{color:var(--ko)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Prova OneDrive</h1>
+<div class="mut">Pagina di prova usa e getta di VideoScout Volley: accesso a OneDrive, apertura di un json, video in streaming. Non modifica le tue partite.</div>
+
+<section>
+  <h2>1. Accesso</h2>
+  <div><label>ID applicazione (client):<br><input id="cid" placeholder="00000000-0000-0000-0000-000000000000"></label></div>
+  <div style="margin-top:8px"><button class="pri" id="login">Accedi a OneDrive</button><button id="logout" hidden>Esci</button> <span id="who" class="mut"></span></div>
+</section>
+
+<section id="sbrowse" hidden>
+  <h2>2. Scegli un json di una partita (oppure direttamente un video .mp4)</h2>
+  <div id="path"></div>
+  <ul id="list"></ul>
+</section>
+
+<section id="splay" hidden>
+  <h2>3. Video</h2>
+  <div id="info" class="mut"></div>
+  <div id="vids"></div>
+  <video id="v" controls playsinline preload="metadata"></video>
+  <div>
+    <button data-j="-10">− 10 s</button><button data-j="10">+ 10 s</button><button data-j="60">+ 1 min</button><button data-j="600">+ 10 min</button><button id="rand">Salto a caso</button>
+    <button class="pri" id="auto">Prova automatica: 10 salti</button>
+  </div>
+</section>
+
+<section id="ssave" hidden>
+  <h2>4. Salvataggio</h2>
+  <div class="mut">Scrive un file nuovo <b>VSV_prova_salvataggio.json</b> nella cartella principale del tuo OneDrive e lo rilegge. Le partite non vengono toccate; il file di prova si può cancellare.</div>
+  <button id="save">Prova salvataggio</button>
+</section>
+
+<section>
+  <h2>Risultati (copiali e incollali a Claude)</h2>
+  <pre id="log"></pre>
+  <button id="copy">Copia i risultati</button>
+</section>
+</main>
+
+<script>
+"use strict";
+const AUTH = "https://login.microsoftonline.com/consumers/oauth2/v2.0";
+const SCOPE = "Files.ReadWrite User.Read offline_access";
+const REDIR = location.origin + location.pathname;
+const G = "https://graph.microsoft.com/v1.0";
+const $ = id => document.getElementById(id);
+
+function store(kind) {
+  const s = () => (kind === "l" ? window.localStorage : window.sessionStorage);
+  return {
+    get(k) { try { return s().getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { s().setItem(k, v); } catch (e) {} },
+    del(k) { try { s().removeItem(k); } catch (e) {} },
+  };
+}
+const SS = store("s"), LS = store("l");
+
+function log(msg, cls) {
+  const line = document.createElement("div");
+  line.textContent = new Date().toLocaleTimeString() + "  " + msg;
+  if (cls) line.className = cls;
+  $("log").appendChild(line);
+  $("log").scrollTop = 1e9;
+}
+function gb(n) { return n >= 1e9 ? (n / 1e9).toFixed(2) + " GB" : n >= 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.round(n / 1e3) + " kB"; }
+function b64url(buf) { let s = ""; new Uint8Array(buf).forEach(b => s += String.fromCharCode(b)); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function rnd(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a); }
+const cid = () => ($("cid").value || "").trim();
+
+// ---------- accesso (OAuth con PKCE, senza librerie)
+async function login() {
+  if (!/^[0-9a-f-]{36}$/i.test(cid())) { alert("Incolla prima l'ID applicazione (client) copiato dalla registrazione."); return; }
+  LS.set("vsv_od_cid", cid());
+  const ver = rnd(48), st = rnd(16);
+  SS.set("od_ver", ver); SS.set("od_state", st);
+  const ch = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ver)));
+  const q = new URLSearchParams({ client_id: cid(), response_type: "code", redirect_uri: REDIR, scope: SCOPE, state: st,
+    code_challenge: ch, code_challenge_method: "S256", response_mode: "query", prompt: "select_account" });
+  location.href = AUTH + "/authorize?" + q;
+}
+async function tokenRequest(params) {
+  const r = await fetch(AUTH + "/token", { method: "POST", body: new URLSearchParams({ client_id: cid(), scope: SCOPE, ...params }) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error_description || j.error || r.status);
+  SS.set("od_tok", j.access_token);
+  SS.set("od_exp", String(Date.now() + j.expires_in * 1000));
+  if (j.refresh_token) SS.set("od_ref", j.refresh_token);
+}
+async function handleRedirect() {
+  const p = new URLSearchParams(location.search);
+  if (!p.get("code") && !p.get("error")) return;
+  history.replaceState(null, "", REDIR);
+  if (p.get("error")) { log("Accesso rifiutato: " + p.get("error") + " — " + (p.get("error_description") || ""), "ko"); return; }
+  if (p.get("state") !== SS.get("od_state")) { log("Risposta di accesso non valida: riprova.", "ko"); return; }
+  const t0 = performance.now();
+  try {
+    await tokenRequest({ grant_type: "authorization_code", code: p.get("code"), redirect_uri: REDIR, code_verifier: SS.get("od_ver") });
+    log("Accesso riuscito (" + Math.round(performance.now() - t0) + " ms).", "ok");
+  } catch (e) { log("Errore nello scambio del codice: " + e.message, "ko"); }
+}
+async function token() {
+  const t = SS.get("od_tok");
+  if (t && Date.now() < +SS.get("od_exp") - 60000) return t;
+  if (!SS.get("od_ref")) return null;
+  await tokenRequest({ grant_type: "refresh_token", refresh_token: SS.get("od_ref") });
+  log("Accesso rinnovato.");
+  return SS.get("od_tok");
+}
+async function g(path, opt = {}) {
+  const t = await token();
+  if (!t) throw new Error("non connesso");
+  const r = await fetch(G + path, { ...opt, headers: { ...(opt.headers || {}), Authorization: "Bearer " + t } });
+  if (!r.ok) { let m = "HTTP " + r.status; try { const j = await r.json(); if (j.error) m += " " + (j.error.code || "") + " " + (j.error.message || ""); } catch (e) {} throw new Error(m); }
+  return r;
+}
+
+// ---------- navigazione nelle cartelle
+let stack = [];   // [{id, name}]
+async function listChildren(id) {
+  const out = [];
+  let url = (id ? "/me/drive/items/" + id : "/me/drive/root") + "/children?$top=200";
+  while (url) {
+    const j = await (await g(url)).json();
+    out.push(...j.value);
+    url = j["@odata.nextLink"] ? j["@odata.nextLink"].replace(G, "") : null;
+  }
+  return out;
+}
+async function show(id) {
+  $("list").innerHTML = "<li class='mut'>Carico…</li>";
+  const t0 = performance.now();
+  let items;
+  try { items = await listChildren(id); }
+  catch (e) { log("Errore nell'elenco della cartella: " + e.message, "ko"); $("list").innerHTML = ""; return; }
+  log("Cartella «" + (stack.length ? stack[stack.length - 1].name : "OneDrive") + "»: " + items.length + " elementi in " + Math.round(performance.now() - t0) + " ms.");
+  items.sort((a, b) => (!!b.folder - !!a.folder) || a.name.localeCompare(b.name));
+  const path = $("path");
+  path.innerHTML = "";
+  const crumb = (label, depth) => { const a = document.createElement("a"); a.textContent = label; a.onclick = () => { stack = stack.slice(0, depth); show(depth ? stack[depth - 1].id : null); }; path.append(a, " / "); };
+  crumb("OneDrive", 0);
+  stack.forEach((s, i) => crumb(s.name, i + 1));
+  const ul = $("list");
+  ul.innerHTML = "";
+  for (const it of items) {
+    const isJson = /\.json$/i.test(it.name), isVid = /\.(mp4|mov|m4v)$/i.test(it.name);
+    if (!it.folder && !isJson && !isVid) continue;
+    const li = document.createElement("li");
+    const n = document.createElement("span");
+    n.textContent = (it.folder ? "📁 " : isJson ? "📄 " : "🎬 ") + it.name;
+    const sz = document.createElement("span");
+    sz.className = "sz";
+    sz.textContent = it.folder ? (it.folder.childCount + " elementi") : gb(it.size);
+    li.append(n, sz);
+    li.onclick = () => {
+      if (it.folder) { stack.push({ id: it.id, name: it.name }); show(it.id); }
+      else if (isJson) openJson(it, id);
+      else playVideo(it);
+    };
+    ul.appendChild(li);
+  }
+  if (!ul.children.length) ul.innerHTML = "<li class='mut'>Nessuna cartella, json o video qui.</li>";
+}
+
+// ---------- json e video
+async function fetchText(it) {
+  const t0 = performance.now();
+  let txt;
+  const direct = it["@microsoft.graph.downloadUrl"];
+  try {
+    if (!direct) throw new Error("niente indirizzo diretto");
+    const r = await fetch(direct);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    txt = await r.text();
+  } catch (e) {
+    txt = await (await g("/me/drive/items/" + it.id + "/content")).text();
+  }
+  log("Json «" + it.name + "» scaricato: " + gb(txt.length) + " in " + Math.round(performance.now() - t0) + " ms.", "ok");
+  return txt;
+}
+async function openJson(it, parentId) {
+  let d;
+  try { d = JSON.parse(await fetchText(it)); }
+  catch (e) { log("Errore nell'apertura del json: " + e.message, "ko"); return; }
+  const meta = d.meta || {}, proj = meta.project || {};
+  const nr = (d.rallies || []).length;
+  const scout = meta.live ? (meta.live.ev || []).length + " eventi scout" : meta.scout ? "scout importato" : "senza scout";
+  $("info").textContent = it.name + " — " + nr + " clip, " + scout + (proj.video_name ? ", video: " + proj.video_name : "");
+  $("splay").hidden = false;
+  $("vids").innerHTML = "";
+  // il video sta nella sottocartella "video" accanto al json
+  try {
+    const sib = await listChildren(parentId);
+    const vf = sib.find(x => x.folder && x.name.toLowerCase() === "video");
+    const vids = vf ? (await listChildren(vf.id)).filter(x => /\.(mp4|mov|m4v)$/i.test(x.name) && !/\.part\./i.test(x.name)) : [];
+    if (!vids.length) { log("Nessun video nella sottocartella «video» accanto al json.", "ko"); return; }
+    vids.sort((a, b) => (b.name === proj.video_name) - (a.name === proj.video_name));
+    for (const x of vids) {
+      const b = document.createElement("button");
+      b.textContent = "▶ " + x.name + " (" + gb(x.size) + ")";
+      b.onclick = () => playVideo(x);
+      $("vids").appendChild(b);
+    }
+    playVideo(vids[0]);
+  } catch (e) { log("Errore nella ricerca del video: " + e.message, "ko"); }
+}
+async function playVideo(it) {
+  $("splay").hidden = false;
+  const v = $("v");
+  let url;
+  try { url = (await (await g("/me/drive/items/" + it.id)).json())["@microsoft.graph.downloadUrl"]; }
+  catch (e) { log("Errore nel chiedere l'indirizzo del video: " + e.message, "ko"); return; }
+  if (!url) { log("OneDrive non ha dato un indirizzo per il video.", "ko"); return; }
+  log("Video «" + it.name + "» (" + gb(it.size) + "): avvio streaming…");
+  const t0 = performance.now();
+  const once = (ev, fn) => v.addEventListener(ev, fn, { once: true });
+  once("loadedmetadata", () => log("  durata letta: " + Math.round(v.duration / 60) + " min, " + v.videoWidth + "×" + v.videoHeight + " — dopo " + Math.round(performance.now() - t0) + " ms.", "ok"));
+  once("canplay", () => log("  primo fotogramma pronto dopo " + Math.round(performance.now() - t0) + " ms.", "ok"));
+  once("error", () => log("  il video non parte (errore " + (v.error ? v.error.code : "?") + "): forse rete bloccata o formato non letto.", "ko"));
+  v.src = url;
+}
+function seek(t) {
+  const v = $("v");
+  return new Promise(res => {
+    if (!v.duration) { log("Prima fai partire un video.", "ko"); return res(null); }
+    t = Math.max(0, Math.min(v.duration - 1, t));
+    const t0 = performance.now();
+    let done = false;
+    const fin = () => { if (done) return; done = true; const ms = Math.round(performance.now() - t0); res(ms); };
+    v.addEventListener("seeked", fin, { once: true });
+    setTimeout(() => { if (!done) { done = true; log("  salto senza risposta dopo 20 s", "ko"); res(20000); } }, 20000);
+    v.currentTime = t;
+  });
+}
+function mmss(t) { t = Math.round(t); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); }
+async function jump(dt) {
+  const v = $("v"), to = v.currentTime + dt;
+  const ms = await seek(to);
+  if (ms != null) log("Salto a " + mmss(to) + ": " + ms + " ms.", ms < 1500 ? "ok" : "ko");
+}
+async function randomJump() {
+  const v = $("v");
+  if (!v.duration) return null;
+  const to = Math.random() * (v.duration - 5);
+  const ms = await seek(to);
+  if (ms != null) log("Salto a caso a " + mmss(to) + ": " + ms + " ms.", ms < 1500 ? "ok" : "ko");
+  return ms;
+}
+async function autoTest() {
+  const v = $("v");
+  if (!v.duration) { log("Prima fai partire un video.", "ko"); return; }
+  $("auto").disabled = true;
+  log("Prova automatica: 10 salti a caso con 2 s di riproduzione tra uno e l'altro…");
+  const res = [];
+  for (let i = 0; i < 10; i++) {
+    const ms = await randomJump();
+    if (ms == null) break;
+    res.push(ms);
+    try { await v.play(); } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+    v.pause();
+  }
+  if (res.length) {
+    const avg = Math.round(res.reduce((a, b) => a + b, 0) / res.length), mx = Math.max(...res);
+    log("RISULTATO: media " + avg + " ms, peggiore " + mx + " ms su " + res.length + " salti.", avg < 1500 ? "ok" : "ko");
+  }
+  $("auto").disabled = false;
+}
+
+// ---------- salvataggio di prova
+async function saveTest() {
+  const body = JSON.stringify({ prova: "VideoScout Volley", quando: new Date().toISOString() }, null, 2);
+  const t0 = performance.now();
+  try {
+    const it = await (await g("/me/drive/root:/VSV_prova_salvataggio.json:/content", { method: "PUT", headers: { "Content-Type": "application/json" }, body })).json();
+    const back = await (await g("/me/drive/items/" + it.id + "/content")).text();
+    if (back === body) log("Salvataggio riuscito e riletto uguale in " + Math.round(performance.now() - t0) + " ms (file VSV_prova_salvataggio.json nella cartella principale di OneDrive).", "ok");
+    else log("Salvato, ma il file riletto è diverso.", "ko");
+  } catch (e) { log("Errore nel salvataggio: " + e.message, "ko"); }
+}
+
+// ---------- avvio
+async function start() {
+  $("cid").value = LS.get("vsv_od_cid") || "";
+  $("login").onclick = login;
+  $("logout").onclick = () => { ["od_tok", "od_exp", "od_ref"].forEach(SS.del); location.reload(); };
+  $("rand").onclick = randomJump;
+  $("auto").onclick = autoTest;
+  $("save").onclick = saveTest;
+  document.querySelectorAll("[data-j]").forEach(b => b.onclick = () => jump(+b.dataset.j));
+  $("copy").onclick = async () => {
+    const txt = $("log").innerText + "\nBrowser: " + navigator.userAgent;
+    try { await navigator.clipboard.writeText(txt); $("copy").textContent = "Copiati ✓"; }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($("log")); getSelection().removeAllRanges(); getSelection().addRange(r); }
+  };
+  await handleRedirect();
+  let t = null;
+  try { t = await token(); } catch (e) { log("Accesso scaduto: " + e.message, "ko"); }
+  if (!t) { log("Pronto. Incolla l'ID applicazione e premi «Accedi a OneDrive»."); return; }
+  try {
+    const me = await (await g("/me")).json();
+    $("who").textContent = "Connesso come " + (me.displayName || me.userPrincipalName || "");
+  } catch (e) { log("Errore nel leggere l'account: " + e.message, "ko"); }
+  $("login").hidden = true; $("logout").hidden = false;
+  $("sbrowse").hidden = false; $("ssave").hidden = false;
+  show(null);
+}
+start();
+</script>
+</body>
+</html>
