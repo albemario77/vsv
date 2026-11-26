@@ -35,6 +35,12 @@ video{width:100%;max-height:60vh;background:#000;border-radius:6px;margin:8px 0}
 <div class="mut">Pagina di prova usa e getta di VideoScout Volley: accesso a OneDrive, apertura di un json, video in streaming. Non modifica le tue partite.</div>
 
 <section>
+  <h2>Prova con un link condiviso (senza accesso)</h2>
+  <div class="mut">Su OneDrive: tasto destro sul video → Condividi → «Chiunque abbia il link» → Copia. Incolla qui il link e premi Prova: la pagina tenta vari modi di far partire il video.</div>
+  <div style="margin-top:8px"><input id="share" placeholder="https://1drv.ms/v/…" style="width:min(100%,620px)"> <button class="pri" id="tryshare">Prova</button></div>
+</section>
+
+<section>
   <h2>1. Accesso</h2>
   <div><label>ID applicazione (client):<br><input id="cid" placeholder="00000000-0000-0000-0000-000000000000"></label></div>
   <div style="margin-top:8px"><button class="pri" id="login">Accedi a OneDrive</button><button id="logout" hidden>Esci</button> <span id="who" class="mut"></span></div>
@@ -311,8 +317,56 @@ async function saveTest() {
   } catch (e) { log("Errore nel salvataggio: " + e.message, "ko"); }
 }
 
+// ---------- link condiviso, senza accesso
+function shareCandidates(link) {
+  const enc = "u!" + btoa(unescape(encodeURIComponent(link))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
+  const withParam = (u, k, v) => { try { const x = new URL(u); x.searchParams.set(k, v); return x.toString(); } catch (e) { return null; } };
+  const c = [
+    ["api.onedrive.com/shares", "https://api.onedrive.com/v1.0/shares/" + enc + "/root/content"],
+    ["link + download=1", withParam(link, "download", "1")],
+  ];
+  if (/onedrive\.live\.com\/(embed|redir|view\.aspx)/i.test(link)) c.push(["link embed→download", link.replace(/\/(embed|redir|view\.aspx)/i, "/download")]);
+  c.push(["link così com'è", link]);
+  return c.filter(x => x[1]);
+}
+function tryUrl(url) {
+  return new Promise(res => {
+    const t = document.createElement("video");
+    t.muted = true; t.preload = "metadata";
+    const t0 = performance.now();
+    let done = false;
+    const fin = (ok, why) => { if (done) return; done = true; const ms = Math.round(performance.now() - t0); t.removeAttribute("src"); t.load(); res({ ok, why, ms }); };
+    t.addEventListener("loadedmetadata", () => fin(t.duration > 0, Math.round(t.duration / 60) + " min, " + t.videoWidth + "×" + t.videoHeight), { once: true });
+    t.addEventListener("error", () => fin(false, "errore " + (t.error ? t.error.code : "?")), { once: true });
+    setTimeout(() => fin(false, "nessuna risposta in 25 s"), 25000);
+    t.src = url;
+  });
+}
+async function tryShare() {
+  const link = ($("share").value || "").trim();
+  if (!/^https:\/\//i.test(link)) { alert("Incolla il link condiviso di OneDrive (comincia con https://)."); return; }
+  $("tryshare").disabled = true;
+  log("Link condiviso: provo " + shareCandidates(link).length + " modi…");
+  let found = null;
+  for (const [name, url] of shareCandidates(link)) {
+    const r = await tryUrl(url);
+    log("  " + name + ": " + (r.ok ? "FUNZIONA (" + r.why + ", " + r.ms + " ms)" : "no (" + r.why + ", " + r.ms + " ms)"), r.ok ? "ok" : "ko");
+    if (r.ok && !found) { found = [name, url]; break; }
+  }
+  $("tryshare").disabled = false;
+  if (!found) { log("RISULTATO: nessun modo ha funzionato con questo link.", "ko"); return; }
+  log("RISULTATO: funziona con «" + found[0] + "». Ora prova i salti qui sotto.", "ok");
+  $("splay").hidden = false;
+  $("info").textContent = "Video dal link condiviso (" + found[0] + ")";
+  $("vids").innerHTML = "";
+  const v = $("v"), t0 = performance.now();
+  v.addEventListener("canplay", () => log("  primo fotogramma pronto dopo " + Math.round(performance.now() - t0) + " ms.", "ok"), { once: true });
+  v.src = found[1];
+}
+
 // ---------- avvio
 async function start() {
+  $("tryshare").onclick = tryShare;
   $("cid").value = LS.get("vsv_od_cid") || "";
   $("login").onclick = login;
   $("logout").onclick = () => { ["od_tok", "od_exp", "od_ref"].forEach(SS.del); location.reload(); };
