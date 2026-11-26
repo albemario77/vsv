@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-1502">
+<meta name="vsv-versione" content="20261126-1633">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -227,6 +227,7 @@ button.on{outline:2px solid var(--acc)}
         <button class="pri" id="save" title="Salva il lavoro nel file .json della partita (Ctrl+S)">Salva</button>
         <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
         <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
+        <button id="odopen" title="Apri il .json di una partita condiviso su OneDrive, senza scaricarlo (il salvataggio poi va ricaricato a mano su OneDrive)">Apri da OneDrive&hellip;</button>
         <button id="opendir" hidden title="Scegli la cartella della partita: carica il lavoro salvato e il video della sottocartella video">Apri cartella partita&hellip;</button>
         <button id="seasonstat" title="Statistiche di tutte le partite della cartella della stagione (non serve aprire una partita)">Statistiche della stagione&hellip;</button>
         <input type="file" id="jfile" accept=".json,application/json" hidden>
@@ -2953,18 +2954,19 @@ async function saveFile(asNew) {
         } catch (e) { /* file illeggibile: lo sovrascrivo */ }
       }
       const w = await fh.createWritable(); await w.write(toJSON(rev)); await w.close();
-      loadedRev = rev; lastSave = hhmm(); markDirty(false); return;
+      loadedRev = rev; lastSave = hhmm(); markDirty(false); odRemind(fh.name); return;
     } catch (e) { if (e.name === "AbortError") return; fh = null; }   // altrimenti: scarica
   }
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([toJSON(rev)], { type: "application/json" }));
   const fname = projectFileName();
   a.download = fname; a.click();
   loadedRev = rev; lastSave = hhmm(); markDirty(false);
+  if (OD_OPENED) { odRemind(fname); return; }
   alert("Il browser non permette di scegliere la cartella: il file e' stato scaricato come " + fname + "\n" +
         "(nella cartella Download). Spostalo in quella dei risultati.");
 }
 // nome proposto per salvare: quello del file aperto, poi <cartella>.json, poi la data, infine partita.json
-let OPENED_NAME = "", MATCHMETA = null;
+let OPENED_NAME = "", MATCHMETA = null, OD_OPENED = false;   // OD_OPENED: json letto da un link di OneDrive
 function projectFileName() {
   if (/\.json$/i.test(OPENED_NAME) && OPENED_NAME.toLowerCase() !== "partita.json") return OPENED_NAME;
   const dir = ((D.cli && D.cli.match) || "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
@@ -2994,6 +2996,7 @@ function loadText(text, name) {
   try { d = JSON.parse(text); if (!Array.isArray(d.rallies)) throw 0; } catch (e) { alert("File non valido: non e' un rallies.json."); return false; }
   if (dirty && !confirm("Ci sono modifiche non salvate su file. Aprire comunque e sostituirle?")) return false;
   APP_MATCH = null;                                                 // un file aperto a mano non si salva sopra la partita aperta dall'app
+  OD_OPENED = false;
   const pj = d.meta && d.meta.project;
   if (pj && (D.empty || pj.video_name !== D.video_name)) setProject(pj, d.rallies);
   else if (pj) { ["threshold", "motion", "motion_bin", "motion_max", "cells", "zones", "seg", "fps", "court", "video_link"].forEach(k => { if (k in pj) D[k] = pj[k]; }); D.deleted = pj.deleted || []; thrPrev = null; }
@@ -3076,6 +3079,40 @@ async function linkOneDrive() {
   if (!v.getAttribute("src") || v.error) streamVideo();
 }
 $("odlink").onclick = linkOneDrive;
+
+// json della partita letto dal link condiviso di OneDrive (sola lettura: il salvataggio si ricarica a mano)
+function odRemind(name) {
+  if (!OD_OPENED) return;
+  alert("Salvato sul PC come " + name + ".\nRicordati di ricaricarlo su OneDrive, nella cartella della partita, sostituendo quello vecchio (stesso nome).");
+}
+async function openOneDrive() {
+  const s = prompt("Incolla il link condiviso del file .json della partita.\n(Su onedrive.live.com: tasto destro sul .json -> Copia link, con \"Chiunque abbia il link\".)");
+  if (s === null || !s.trim()) return;
+  const u = odStreamUrl(s);
+  if (!u) { alert("Questo non e' un link condiviso di OneDrive personale: deve cominciare con https://1drv.ms/.../c/..."); return; }
+  const b = $("odopen"), old = b.textContent;
+  b.disabled = true; b.textContent = "Scarico da OneDrive...";
+  let text, name = "";
+  try {
+    const r = await fetch(u);
+    if (!r.ok) throw new Error("risposta " + r.status);
+    const cd = r.headers.get("Content-Disposition") || "";
+    const m = /filename\*=utf-8''([^;]+)/i.exec(cd) || /filename="([^"]+)"/i.exec(cd);
+    if (m) { try { name = decodeURIComponent(m[1]); } catch (e) { name = m[1]; } }
+    text = await r.text();
+  } catch (e) {
+    b.disabled = false; b.textContent = old;
+    alert("Non riesco a leggere il file da OneDrive (" + e.message + ").\nControlla il link e la connessione.");
+    return;
+  }
+  b.disabled = false; b.textContent = old;
+  if (name && !/\.json$/i.test(name)) { alert("Il link porta a " + name + ", non a un file .json della partita."); return; }
+  if (!loadText(text, name)) return;
+  fh = null; OD_OPENED = true; status();
+  maybeStream();
+  if (!D.video_link) alert("Partita aperta. In questo .json non c'e' il link del video: usa \"Video su OneDrive...\" oppure \"Scegli il video...\".");
+}
+$("odopen").onclick = openOneDrive;
 $("vstream").onclick = streamVideo;
 
 // cartella della partita: lavoro salvato (.json) e video (sottocartella video) caricati insieme
