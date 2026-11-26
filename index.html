@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-1725">
+<meta name="vsv-versione" content="20261126-1730">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -195,6 +195,7 @@ button.on{outline:2px solid var(--acc)}
 
 /* ---- vista per telefono e tablet (sola lettura) */
 body.mob > *:not(#mob):not(dialog){display:none!important}
+#mob [hidden]{display:none!important}
 #mob{position:fixed;inset:0;overflow:auto;background:var(--bg);font-size:16px;-webkit-text-size-adjust:100%;overscroll-behavior:contain}
 #mob button{min-height:44px;font-size:16px;padding:8px 14px;border-radius:10px}
 #mob .mut{color:var(--mut)}
