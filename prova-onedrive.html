@@ -321,10 +321,12 @@ async function saveTest() {
 function shareCandidates(link) {
   const enc = "u!" + btoa(unescape(encodeURIComponent(link))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
   const withParam = (u, k, v) => { try { const x = new URL(u); x.searchParams.set(k, v); return x.toString(); } catch (e) { return null; } };
-  const c = [
-    ["api.onedrive.com/shares", "https://api.onedrive.com/v1.0/shares/" + enc + "/root/content"],
-    ["link + download=1", withParam(link, "download", "1")],
-  ];
+  const c = [];
+  const m = link.match(/^https:\/\/1drv\.ms\/[a-z]\/c\/([0-9a-f]+)\/([A-Za-z0-9_-]+)/i);
+  if (m) c.push(["microsoftpersonalcontent", "https://my.microsoftpersonalcontent.com/personal/" + m[1].toLowerCase() + "/_layouts/15/download.aspx?share=" + m[2]]);
+  c.push(
+    ["api.onedrive.com/shares","https://api.onedrive.com/v1.0/shares/" + enc + "/root/content"],
+    ["link + download=1", withParam(link, "download", "1")]);
   if (/onedrive\.live\.com\/(embed|redir|view\.aspx)/i.test(link)) c.push(["link embed→download", link.replace(/\/(embed|redir|view\.aspx)/i, "/download")]);
   c.push(["link così com'è", link]);
   return c.filter(x => x[1]);
