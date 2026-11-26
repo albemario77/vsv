@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-1917">
+<meta name="vsv-versione" content="20261126-2349">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -571,6 +571,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
       <div id="mobnovid" hidden><span class="mut">Il video non c'&egrave;.</span> <button id="mobvpick">Scegli il video</button> <button id="mobvlink">Link del video su OneDrive</button></div>
       <div id="mobctl"><button id="mobprev" title="Clip precedente">&#9198;</button><button id="mobplay" class="pri">&#9654;</button><button id="mobnext" title="Clip successiva">&#9197;</button><button id="mobspeed">1x</button></div>
       <div id="mobseq"></div>
+      <div class="mseg" id="mobmode" hidden><button data-m="clip">Clip</button><button data-m="tch">Tocchi</button></div>
       <div id="mobsum"><button id="mobfbtn">Filtri</button><span id="mobsumtxt"></span><span id="mobcount" class="mut"></span></div>
       <div id="mobadv" hidden>Filtro avanzato attivo (dal computer) <button id="mobadvclr">Azzera</button></div>
       <div id="moblist"></div>
@@ -4940,16 +4941,19 @@ if (MOB) {
 // scheda Video: elenco (tocchi se lo scout ha gli istanti, altrimenti clip con Tieni), scout dell'azione, comandi
 window.mobTchAvail = () => tchAvail();
 window.mobUseSrc = u => { v.src = u; };
-var MOBL = [], MOBI = -1, MOBSEQ = [];
+var MOBL = [], MOBI = -1, MOBSEQ = [], MOBMODE = "clip";
+try { if (localStorage.getItem("volleycut:mobmode") === "tch") MOBMODE = "tch"; } catch (e) { /* si parte dalle clip */ }
 function mobList() {
-  if (window.mobTchAvail()) return tchList().map(w => ({ start: w.start, end: w.end, p: w.p, tch: w.tch }));
+  if (MOBMODE === "tch" && window.mobTchAvail()) return tchList().map(w => ({ start: w.start, end: w.end, p: w.p, tch: w.tch }));
   const pts = SCOUT && SCOUT.points;
   return sorted().filter(r => r.keep).filter(passScout).map(r => ({ start: r.start, end: r.end, p: r.sp && pts ? pts[r.sp - 1] || null : null }));
 }
 function mobRowText(w) {
   if (w.tch) return "#" + w.tch.numero + " " + (w.tch.cognome || "") + " · " + w.tch.tipo + " " + w.tch.voto;
   const seq = MobLib.rallySeq(w.p, SCOUT ? SCOUT.side : "loc");
-  return seq.length ? seq[seq.length - 1].text : fmt(w.start);
+  if (!seq.length) return fmt(w.start);
+  const end = seq[seq.length - 1], last = seq.filter(x => x.t !== null).pop();   // l'ultimo tocco e come e' finita
+  return (last && last !== end ? last.text + " · " : "") + end.text;
 }
 function mobRenderList() {
   $("moblist").innerHTML = MOBL.map((w, i) => '<div class="mi' + (i === MOBI ? " on" : "") + '" data-i="' + i + '"><span class="n">' + (i + 1) +
@@ -4981,6 +4985,8 @@ function mobVideo() {
   if (MOBI >= MOBL.length) MOBI = -1;
   const sc = hasScout() || window.mobTchAvail();
   $("mobfbtn").hidden = !sc;
+  $("mobmode").hidden = !window.mobTchAvail();
+  $("mobmode").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.m === MOBMODE));
   const f = MobLib.fromFlt(FLT, StatsLib);
   $("mobsumtxt").textContent = sc ? MobLib.summary(f.ch, StatsLib) : "Clip con Tieni";
   $("mobcount").textContent = MOBL.length + (MOBL[0] && MOBL[0].tch ? " tocchi" : " clip");
@@ -5011,6 +5017,12 @@ function mobShowCtl() {
   mobCtlTimer = setTimeout(() => { if ($("mob").classList.contains("mobland")) $("mob").classList.add("mobhide"); }, 3000);
 }
 if (MOB) {
+  $("mobmode").onclick = e => {                                     // clip intere o singoli tocchi
+    const b = e.target.closest("button"); if (!b || b.dataset.m === MOBMODE) return;
+    MOBMODE = b.dataset.m;
+    try { localStorage.setItem("volleycut:mobmode", MOBMODE); } catch (err) { /* resta per questa volta */ }
+    v.pause(); MOBI = -1; mobVideo();
+  };
   $("moblist").onclick = e => { const r = e.target.closest(".mi"); if (r) mobPlay(+r.dataset.i); };
   $("mobseq").onclick = e => { const b = e.target.closest("button.sq"); if (b) { const x = MOBSEQ[+b.dataset.k]; if (x && x.t !== null) v.currentTime = Math.max(0, x.t - 1); } };
   $("mobprev").onclick = () => mobPlay(Math.max(0, MOBI - 1));
@@ -5080,6 +5092,7 @@ function mobStats() {
 }
 function mobGo(f) {
   fltReset(); Object.assign(FLT, f);
+  if (window.mobTchAvail()) MOBMODE = "tch";                         // un numero delle statistiche conta tocchi: si vedono proprio quelli
   MOBI = -1; mobTab("video");
   if (MOBL.length) mobPlay(0);
 }
