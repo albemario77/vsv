@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-0726">
+<meta name="vsv-versione" content="20261126-0820">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -227,6 +227,7 @@ button.on{outline:2px solid var(--acc)}
         <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
         <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
         <button id="opendir" hidden title="Scegli la cartella della partita: carica il lavoro salvato e il video della sottocartella video">Apri cartella partita&hellip;</button>
+        <button id="seasonstat" title="Statistiche di tutte le partite della cartella della stagione (non serve aprire una partita)">Statistiche della stagione&hellip;</button>
         <input type="file" id="jfile" accept=".json,application/json" hidden>
         <button id="pick">Scegli il video&hellip;</button>
         <input type="file" id="file" accept="video/*,.mp4,.m4v,.mov,.mkv,.webm,application/octet-stream" hidden>
@@ -2687,7 +2688,7 @@ async function stSeasonLoad() {
   if (!list) { STSEASON = null; stRender(); return; }
   STSEASON = list.map(x => Object.assign(x, { sc: scoutFromMeta(x.meta) })).filter(x => x.sc && x.sc.points.length)
     .sort((a, b) => a.date.localeCompare(b.date));
-  stRender();
+  stFillSelects(); stRender();
 }
 function stStagione() {
   if (!STSEASON) return '<p>Le statistiche della stagione mettono insieme tutte le partite della cartella della stagione.</p><button class="pri" id="stload">' +
@@ -2706,22 +2707,27 @@ function stStagione() {
 }
 function stFillSelects() {
   const ss = $("stset"), sp = $("stpl"), cs = ss.value, cp = sp.value;
-  ss.innerHTML = '<option value="">tutti i set</option>' + [...new Set(SCOUT.points.map(p => p.set))].map(x => '<option value="' + x + '">Set ' + x + "</option>").join("");
+  const pts = SCOUT && SCOUT.points && SCOUT.points.length ? SCOUT.points : (STSEASON || []).flatMap(x => x.sc.points);
+  ss.innerHTML = '<option value="">tutti i set</option>' + [...new Set(pts.map(p => p.set))].map(x => '<option value="' + x + '">Set ' + x + "</option>").join("");
   const pl = new Map();
-  SCOUT.points.forEach(p => (p.touches || []).forEach(t => { if (SL.fundOf(t.tipo) && t.numero !== null) pl.set((t.cognome || "") + "|" + t.numero, "#" + t.numero + " " + (t.cognome || "")); }));
+  pts.forEach(p => (p.touches || []).forEach(t => { if (SL.fundOf(t.tipo) && t.numero !== null) pl.set((t.cognome || "") + "|" + t.numero, "#" + t.numero + " " + (t.cognome || "")); }));
   sp.innerHTML = '<option value="">tutta la squadra</option>' + [...pl].sort((a, b) => a[1].localeCompare(b[1], "it", { numeric: true })).map(x => '<option value="' + esc(x[0]) + '">' + esc(x[1]) + "</option>").join("");
   ss.value = [...ss.options].some(o => o.value === cs) ? cs : ""; sp.value = [...sp.options].some(o => o.value === cp) ? cp : "";
 }
+const hasScout = () => !!(SCOUT && SCOUT.points && SCOUT.points.length);
 function stRender() {
-  document.querySelectorAll("#sttabs button").forEach(b => b.classList.toggle("on", b.dataset.t === STTAB));
+  if (!hasScout()) STTAB = "stagione";                         // senza partita aperta c'e' solo la stagione
+  document.querySelectorAll("#sttabs button").forEach(b => { b.classList.toggle("on", b.dataset.t === STTAB); b.disabled = b.dataset.t !== "stagione" && !hasScout(); });
   $("stset").hidden = STTAB === "stagione";
   $("stbody").innerHTML = STTAB === "partita" ? stPartita() : STTAB === "catene" ? stCatene() : stStagione();
   const ld = $("stload"); if (ld) ld.onclick = stSeasonLoad;
 }
-function showStats() {
-  if (!SCOUT || !SCOUT.points || !SCOUT.points.length) { alert("Nessuno scout con punti in questa partita."); return; }
-  stFillSelects(); stRender(); $("stdlg").showModal();
+function showStats(tab) {
+  if (tab) STTAB = tab;
+  else if (!hasScout()) { alert("Nessuno scout con punti in questa partita."); return; }
+  stFillSelects(); stRender(); if (!$("stdlg").open) $("stdlg").showModal();
 }
+$("seasonstat").onclick = () => showStats("stagione");
 // clic su un numero: gli stessi filtri dei menu, poi la vista cinema sui tocchi (o sulle clip, se lo scout non ha gli istanti)
 function stGo(f) {
   fltReset(); Object.assign(FLT, f);
@@ -2972,6 +2978,7 @@ async function appStart() {
   appStarted = true;
   document.body.classList.add("inapp"); $("appback").hidden = false;
   const q = new URLSearchParams(location.search), folder = q.get("partita");
+  if (q.get("stagione")) { showStats("stagione"); stSeasonLoad(); return; }
   if (!folder) return;
   const o = await APP().open_match(folder, q.get("compatto") === "1");
   if (!o || o.error) { alert((o && o.error) || "Partita non trovata."); return; }
