@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-1633">
+<meta name="vsv-versione" content="20261126-1725">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -192,6 +192,51 @@ button.on{outline:2px solid var(--acc)}
 .lsgrid select{width:100%}
 #lmros input[type=text]{width:9em}#lmros input[type=number]{width:4.2em}
 @media (max-width:900px){#sv{grid-template-columns:1fr;grid-template-rows:minmax(0,40vh) auto}#svpanel{border-left:0;border-top:1px solid var(--line);overflow:auto}#svpanel>#svlast{flex:none;max-height:50vh}}
+
+/* ---- vista per telefono e tablet (sola lettura) */
+body.mob > *:not(#mob):not(dialog){display:none!important}
+#mob{position:fixed;inset:0;overflow:auto;background:var(--bg);font-size:16px;-webkit-text-size-adjust:100%;overscroll-behavior:contain}
+#mob button{min-height:44px;font-size:16px;padding:8px 14px;border-radius:10px}
+#mob .mut{color:var(--mut)}
+#mob .mobpad{padding:12px 16px}
+#mob .mbig{display:block;width:100%;margin:10px 0;min-height:56px;font-size:18px}
+#mobhead{display:flex;align-items:center;gap:10px;padding:8px 12px}#mobhead b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mob .mseg{display:flex;gap:0;margin:0 12px 8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+#mob .mseg button{flex:1;border:0;border-radius:0;background:var(--card);color:var(--fg)}#mob .mseg button.on{background:var(--acc);color:#fff}
+#mobvid{position:relative;background:#000}
+#mobvid video{display:block;width:100%;height:auto;max-height:60vh;border-radius:0}
+#mobnovid{padding:12px 16px}
+#mobctl{display:flex;gap:8px;padding:8px 12px}#mobctl button{flex:1;font-size:20px}
+#mobseq{display:flex;flex-wrap:wrap;gap:6px;padding:4px 12px 8px}
+#mobseq .sq{min-height:36px;padding:6px 10px;border-radius:18px;border:1px solid var(--line);font-size:14px;background:var(--card);color:var(--fg)}
+#mobseq .sq.on{background:var(--acc);color:#fff;border-color:var(--acc)}#mobseq .sq.pt{border-style:dashed;background:transparent}
+#mobsum{display:flex;align-items:center;gap:10px;padding:6px 12px;border-top:1px solid var(--line)}#mobsumtxt{flex:1}
+#mobadv{padding:6px 12px;color:var(--dub)}
+#moblist .mi{display:flex;gap:10px;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+#moblist .mi .n{min-width:2em;color:var(--mut)}#moblist .mi .s{color:var(--mut);white-space:nowrap}
+#moblist .mi.on{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+#mobflt{position:fixed;left:0;right:0;bottom:0;max-height:75vh;overflow:auto;background:var(--card);border-top:1px solid var(--line);border-radius:14px 14px 0 0;padding:12px 16px;box-shadow:0 -6px 24px rgba(0,0,0,.25);z-index:5}
+#mobflt h3{font-size:14px;margin:10px 0 6px;color:var(--mut)}
+#mob .mchips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px}
+#mob .mchips button{background:var(--card);color:var(--fg);border:1px solid var(--line)}#mob .mchips button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#mobfbar{display:flex;align-items:center;gap:10px;margin-top:12px}#mobfbar span{flex:1;text-align:center}
+#mobstat .mchips{padding:0 12px}
+#mobstbody{padding:0 12px 12px}
+#mobstbody h3{font-size:15px;margin:14px 0 4px}
+#mobstbody table{display:block;overflow-x:auto;border-collapse:collapse;max-width:100%;margin:4px 0 12px}
+#mobstbody th,#mobstbody td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+#mobstbody th:first-child,#mobstbody td:first-child{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1}
+#mobstbody th{font-size:12px;color:var(--mut)}#mobstbody .pc{color:var(--mut);font-size:11px;margin-left:3px}
+#mobstbody td[data-st]{color:var(--acc);text-decoration:underline}
+#mobstbody .neg{color:#d9534f}#mobstbody .pos{color:var(--ok)}#mobstbody .worst{background:color-mix(in srgb,#d9534f 18%,transparent)}
+#mobstbody .bar{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-left:4px}
+#mobstbody .stwrap{display:flex;gap:16px;flex-wrap:wrap}
+/* orizzontale: solo il video, i comandi compaiono toccando */
+#mob.mobland #mobhead,#mob.mobland #mobtabs,#mob.mobland #mobseq,#mob.mobland #mobsum,#mob.mobland #mobadv,#mob.mobland #moblist,#mob.mobland #mobfull,#mob.mobland #mobnovid{display:none}
+#mob.mobland #mobvid video{width:100vw;height:100vh;max-height:none;object-fit:contain}
+#mob.mobland #mobctl{position:fixed;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);transition:opacity .3s}
+#mob.mobland #mobctl button{background:rgba(255,255,255,.15);color:#fff;border-color:transparent}
+#mob.mobland.mobhide #mobctl{opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -227,6 +272,7 @@ button.on{outline:2px solid var(--acc)}
         <button class="pri" id="save" title="Salva il lavoro nel file .json della partita (Ctrl+S)">Salva</button>
         <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
         <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
+        <button id="tomob" hidden title="Vista semplice per telefono e tablet">Vista telefono</button>
         <button id="odopen" title="Apri il .json di una partita condiviso su OneDrive, senza scaricarlo (il salvataggio poi va ricaricato a mano su OneDrive)">Apri da OneDrive&hellip;</button>
         <button id="opendir" hidden title="Scegli la cartella della partita: carica il lavoro salvato e il video della sottocartella video">Apri cartella partita&hellip;</button>
         <button id="seasonstat" title="Statistiche di tutte le partite della cartella della stagione (non serve aprire una partita)">Statistiche della stagione&hellip;</button>
@@ -507,6 +553,40 @@ button.on{outline:2px solid var(--acc)}
 </dialog>
 <datalist id="tags"><option value="ace"><option value="muro"><option value="attacco"><option value="difesa"><option value="errore"><option value="scambio-lungo"><option value="punto-A"><option value="punto-B"></datalist>
 
+<div id="mob" hidden>
+  <div id="mobstart" class="mobpad">
+    <h2>VideoScout Volley</h2>
+    <p class="mut">Clip, tocchi e statistiche di una partita, in sola lettura.</p>
+    <button class="mbig pri" id="mobod">Apri da OneDrive</button>
+    <button class="mbig" id="mobfile">Apri file</button>
+    <p class="mut">Con &laquo;Apri da OneDrive&raquo; incolli il link condiviso del file .json della partita.</p>
+    <p><a href="#" id="mobfull0">Versione completa</a></p>
+  </div>
+  <div id="mobmain" hidden>
+    <div id="mobhead"><b id="mobtitle"></b><button id="mobopen">Apri&hellip;</button></div>
+    <div class="mseg" id="mobtabs"><button data-t="video" class="on">Video</button><button data-t="stat" id="mobtabstat">Statistiche</button></div>
+    <div id="mobvideo">
+      <div id="mobvid"></div>
+      <div id="mobnovid" hidden><span class="mut">Il video non c'&egrave;.</span> <button id="mobvpick">Scegli il video</button></div>
+      <div id="mobctl"><button id="mobprev" title="Clip precedente">&#9198;</button><button id="mobplay" class="pri">&#9654;</button><button id="mobnext" title="Clip successiva">&#9197;</button><button id="mobspeed">1x</button></div>
+      <div id="mobseq"></div>
+      <div id="mobsum"><button id="mobfbtn">Filtri</button><span id="mobsumtxt"></span><span id="mobcount" class="mut"></span></div>
+      <div id="mobadv" hidden>Filtro avanzato attivo (dal computer) <button id="mobadvclr">Azzera</button></div>
+      <div id="moblist"></div>
+    </div>
+    <div id="mobstat" hidden>
+      <div class="mseg" id="mobsttabs"><button data-s="partita" class="on">Partita</button><button data-s="catene">Catene</button><button data-s="stagione">Stagione</button></div>
+      <div id="mobstset" class="mchips"></div>
+      <div id="mobstpl" class="mchips"></div>
+      <div id="mobstbody"></div>
+    </div>
+    <p class="mobpad"><a href="#" id="mobfull">Versione completa</a></p>
+  </div>
+  <div id="mobflt" hidden>
+    <div id="mobfltbody"></div>
+    <div id="mobfbar"><button id="mobfclr">Azzera</button><span id="mobfcount" class="mut"></span><button class="pri" id="mobfok">Fatto</button></div>
+  </div>
+</div>
 <script>
 // Lettura e controllo dello scout (export xlsx di Volleyball Scout). Nessuna dipendenza:
 // funziona nel browser (incorporato in review.html) e in Node (per i test).
@@ -1800,6 +1880,77 @@ const StatsLib = (() => {
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = StatsLib;
 
+// Vista per telefono e tablet (sola lettura): opzioni dei filtri a pulsanti, traduzione pulsanti <-> FLT della pagina,
+// sequenza dei tocchi dell'azione. Le funzioni ricevono StatsLib (SL) per fondamentali, etichette e voti.
+const MobLib = (() => {
+  const BASE = ["set", "player", "skill", "grade"];
+
+  function filterOptions(points, SL) {
+    const sets = new Set(), players = new Map(), funds = new Set(), grades = new Set();
+    for (const p of points || []) {
+      sets.add(String(p.set));
+      for (const t of p.touches || []) {
+        const f = SL.fundOf(t.tipo);
+        if (!f) continue;
+        funds.add(f);
+        if (SL.VOTES.includes(t.voto)) grades.add(t.voto);
+        if (t.numero !== null && t.numero !== undefined) players.set((t.cognome || "") + "|" + t.numero, { n: +t.numero, l: "#" + t.numero + " " + (t.cognome || "") });
+      }
+    }
+    return {
+      set: [...sets].sort((a, b) => a - b).map(s => [s, "Set " + s]),
+      player: [...players].sort((a, b) => a[1].n - b[1].n).map(([k, x]) => [k, x.l.trim()]),
+      fund: SL.FUNDS.filter(f => funds.has(f)).map(f => [f, SL.LABEL[f]]),
+      grade: SL.VOTES.filter(v => grades.has(v)).map(v => [v, v]),
+    };
+  }
+
+  const toFlt = (ch, SL) => ({
+    set: (ch.set || []).slice(), player: (ch.player || []).slice(),
+    skill: [].concat(...(ch.fund || []).map(f => SL.TIPI[f] || [])), grade: (ch.grade || []).slice(),
+  });
+
+  function fromFlt(FLT, SL) {
+    let advanced = Object.keys(FLT).some(k => !BASE.includes(k) && k !== "dir" && (FLT[k] || []).length);
+    const skill = FLT.skill || [], fund = [];
+    for (const f of SL.FUNDS) if (SL.TIPI[f].some(t => skill.includes(t))) {
+      if (SL.TIPI[f].every(t => skill.includes(t))) fund.push(f); else advanced = true;
+    }
+    if (skill.some(t => !SL.fundOf(t))) advanced = true;
+    return { ch: { set: (FLT.set || []).slice(), player: (FLT.player || []).slice(), fund, grade: (FLT.grade || []).slice() }, advanced };
+  }
+
+  function summary(ch, SL) {
+    const parts = [];
+    if ((ch.set || []).length) parts.push("Set " + ch.set.join(", "));
+    if ((ch.player || []).length) parts.push(ch.player.map(k => { const [c, n] = k.split("|"); return ("#" + n + " " + c).trim(); }).join(", "));
+    if ((ch.fund || []).length) parts.push(ch.fund.map(f => SL.LABEL[f] || f).join(", "));
+    if ((ch.grade || []).length) parts.push(ch.grade.join(" "));
+    return parts.length ? parts.join(" · ") : "Tutto";
+  }
+
+  // nello scout ci sono solo i tocchi della nostra squadra: own e' vero per i tocchi, falso per la riga del punto
+  function rallySeq(p, side) {
+    if (!p) return [];
+    const out = (p.touches || []).map(t => ({
+      t: typeof t.t === "number" ? t.t : null,
+      text: (t.tipo || "") + (t.numero !== null && t.numero !== undefined ? " #" + t.numero : "") + (t.voto ? " " + t.voto : ""),
+      own: true,
+    }));
+    if (p.winner) out.push({ t: null, text: p.winner === side ? "punto noi" : "punto loro", own: false });
+    return out;
+  }
+
+  function seqIndex(seq, time) {
+    let k = -1;
+    seq.forEach((s, i) => { if (s.t !== null && s.t <= time + 0.05) k = i; });
+    return k;
+  }
+
+  return { filterOptions, toFlt, fromFlt, summary, rallySeq, seqIndex };
+})();
+if (typeof module !== "undefined" && module.exports) module.exports = MobLib;
+
 // Segmentazione dei rally da fischi e movimento: stessa logica di volleycut/segmentation.py,
 // sulle misure di movimento a intervalli (il massimo di ogni secondo salvato nella pagina).
 // Funzioni pure. Non deve contenere la sequenza di chiusura dello script.
@@ -3012,7 +3163,9 @@ function loadText(text, name) {
   sel = null; lastSave = name ? hhmm() : lastSave;
   if (sorted().length) { const w = v1 - v0; v0 = clamp(R[0].start - 30, 0, Math.max(0, DUR - w)); v1 = v0 + w; seek(R[0].start); }
   $("vstream").hidden = !D.video_link;
-  changed(); markDirty(false); return true;
+  changed(); markDirty(false);
+  if (window.MOBHOOK) MOBHOOK();
+  return true;
 }
 async function openFile() {
   if (window.showOpenFilePicker) {
@@ -3259,6 +3412,7 @@ v.addEventListener("play", () => {
   if (!k.some(r => t >= r.start - 0.05 && t < r.end)) { const nx = k.find(r => r.start > t) || k[0]; if (nx) { seek(nx.start); select(nx, false); } }
 });
 function tick() {
+  if (window.MOBON) { requestAnimationFrame(tick); return; }
   if (cine) { cineTick(); zoomDraw(); requestAnimationFrame(tick); return; }
   if (svOn) { svTick(); zoomDraw(); requestAnimationFrame(tick); return; }
   if (!v.paused && seqOn()) {
@@ -4725,6 +4879,206 @@ restoreScout(store.loadScout());
 LIVE = D.empty ? null : store.loadLive(); liveRefresh();
 if (!D.empty && saved && saved.length && !D.court) D.court = store.loadCourt();     // campo segnato e non ancora salvato su file
 renderRows(); stats(); draw(); markDirty(!!(saved && saved.length)); requestAnimationFrame(tick);
+
+// ---- vista per telefono e tablet (sola lettura): docs/2026-11-26-vista-telefono-design.md
+const MOB = (() => {
+  const q = new URLSearchParams(location.search).get("vista");
+  if (q === "telefono") return true;
+  if (q === "completa") return false;
+  let pref = null;
+  try { pref = localStorage.getItem("volleycut:vista"); } catch (e) { /* senza memoria del browser */ }
+  return MOBILE && pref !== "completa";
+})();
+function mobSetView(name) {
+  try { localStorage.setItem("volleycut:vista", name); } catch (e) { /* vale solo la query */ }
+  const u = new URL(location.href);
+  u.searchParams.set("vista", name);
+  location.href = u.toString();
+}
+let MOBTAB = "video";
+function mobTab(name) {
+  MOBTAB = name;
+  document.querySelectorAll("#mobtabs button").forEach(b => b.classList.toggle("on", b.dataset.t === name));
+  $("mobvideo").hidden = name !== "video"; $("mobstat").hidden = name !== "stat";
+  if (name === "stat") { v.pause(); if (window.mobStats) mobStats(); }
+  else if (window.mobVideo) mobVideo();
+}
+function mobRefresh() {
+  if (!MOB) return;
+  const open = !D.empty;
+  $("mobstart").hidden = open; $("mobmain").hidden = !open;
+  if (!open) return;
+  $("mobtitle").textContent = (OPENED_NAME || D.video_name || "").replace(/\.json$/i, "");
+  $("mobtabstat").hidden = !hasScout();
+  if (MOBTAB === "stat" && !hasScout()) MOBTAB = "video";
+  mobTab(MOBTAB);
+}
+if (MOB) {
+  window.MOBON = true; window.MOBHOOK = mobRefresh;
+  document.body.classList.add("mob"); $("mob").hidden = false;
+  if (cine) setCine(false);
+  $("mobvid").appendChild(v);
+  $("mobod").onclick = openOneDrive;
+  $("mobfile").onclick = () => $("jfile").click();
+  $("mobopen").onclick = () => { v.pause(); $("mobstart").hidden = false; $("mobmain").hidden = true; };
+  $("mobvpick").onclick = () => $("file").click();
+  $("mobfull").onclick = $("mobfull0").onclick = e => { e.preventDefault(); mobSetView("completa"); };
+  $("mobtabs").onclick = e => { const b = e.target.closest("button"); if (b) mobTab(b.dataset.t); };
+} else if (MOBILE) {
+  $("tomob").hidden = false;
+  $("tomob").onclick = () => mobSetView("telefono");
+}
+// scheda Video: elenco (tocchi se lo scout ha gli istanti, altrimenti clip con Tieni), scout dell'azione, comandi
+window.mobTchAvail = () => tchAvail();
+var MOBL = [], MOBI = -1, MOBSEQ = [];
+function mobList() {
+  if (window.mobTchAvail()) return tchList().map(w => ({ start: w.start, end: w.end, p: w.p, tch: w.tch }));
+  const pts = SCOUT && SCOUT.points;
+  return sorted().filter(r => r.keep).filter(passScout).map(r => ({ start: r.start, end: r.end, p: r.sp && pts ? pts[r.sp - 1] || null : null }));
+}
+function mobRowText(w) {
+  if (w.tch) return "#" + w.tch.numero + " " + (w.tch.cognome || "") + " · " + w.tch.tipo + " " + w.tch.voto;
+  const seq = MobLib.rallySeq(w.p, SCOUT ? SCOUT.side : "loc");
+  return seq.length ? seq[seq.length - 1].text : fmt(w.start);
+}
+function mobRenderList() {
+  $("moblist").innerHTML = MOBL.map((w, i) => '<div class="mi' + (i === MOBI ? " on" : "") + '" data-i="' + i + '"><span class="n">' + (i + 1) +
+    '</span><span class="s">' + esc(w.p ? ScoutLib.pointLabel(w.p) : fmt(w.start)) + "</span><span>" + esc(mobRowText(w)) + "</span></div>").join("") ||
+    '<p class="mobpad mut">Nessuna clip con questi filtri.</p>';
+}
+function mobRenderSeq() {
+  const w = MOBL[MOBI];
+  MOBSEQ = w && w.p ? MobLib.rallySeq(w.p, SCOUT ? SCOUT.side : "loc") : [];
+  $("mobseq").hidden = !MOBSEQ.length;
+  $("mobseq").innerHTML = MOBSEQ.map((x, i) => x.t === null ? '<span class="sq' + (x.own ? "" : " pt") + '" data-k="' + i + '">' + esc(x.text) + "</span>"
+    : '<button class="sq" data-k="' + i + '">' + esc(x.text) + "</button>").join("");
+  mobSeqHi();
+}
+function mobSeqHi() {
+  const k = MobLib.seqIndex(MOBSEQ, v.currentTime);
+  $("mobseq").querySelectorAll(".sq").forEach(el => el.classList.toggle("on", +el.dataset.k === k));
+}
+function mobPlay(i) {
+  if (i < 0 || i >= MOBL.length) return;
+  MOBI = i;
+  v.currentTime = MOBL[i].start;
+  const pr = v.play(); if (pr && pr.catch) pr.catch(() => { /* senza video o senza gesto dell'utente */ });
+  mobRenderList(); mobRenderSeq();
+  const el = $("moblist").querySelector(".mi.on"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+}
+function mobVideo() {
+  MOBL = mobList();
+  if (MOBI >= MOBL.length) MOBI = -1;
+  const sc = hasScout() || window.mobTchAvail();
+  $("mobfbtn").hidden = !sc;
+  const f = MobLib.fromFlt(FLT, StatsLib);
+  $("mobsumtxt").textContent = sc ? MobLib.summary(f.ch, StatsLib) : "Clip con Tieni";
+  $("mobcount").textContent = MOBL.length + (MOBL[0] && MOBL[0].tch ? " tocchi" : " clip");
+  $("mobadv").hidden = !(sc && f.advanced);
+  $("mobnovid").hidden = !!(v.getAttribute("src") && !v.error);
+  mobRenderList(); mobRenderSeq();
+}
+v.addEventListener("timeupdate", () => {
+  if (!window.MOBON) return;
+  const w = MOBL[MOBI];
+  if (w && !v.paused && v.currentTime >= w.end && v.currentTime < w.end + 1.5) {   // fine della clip: si passa alla successiva
+    if (MOBI + 1 < MOBL.length) mobPlay(MOBI + 1); else v.pause();
+  }
+  mobSeqHi();
+});
+["play", "pause"].forEach(ev => v.addEventListener(ev, () => { if (window.MOBON) $("mobplay").innerHTML = v.paused ? "&#9654;" : "&#9208;"; }));
+v.addEventListener("loadedmetadata", () => { if (window.MOBON) $("mobnovid").hidden = true; });
+v.addEventListener("error", () => { if (window.MOBON) $("mobnovid").hidden = false; });
+function mobLand() {                                                  // orizzontale su telefono: solo il video
+  const on = matchMedia("(orientation: landscape)").matches && innerHeight < 500 && MOBTAB === "video" && !$("mobmain").hidden;
+  $("mob").classList.toggle("mobland", on);
+  if (on) mobShowCtl();
+}
+let mobCtlTimer = null;
+function mobShowCtl() {
+  $("mob").classList.remove("mobhide");
+  clearTimeout(mobCtlTimer);
+  mobCtlTimer = setTimeout(() => { if ($("mob").classList.contains("mobland")) $("mob").classList.add("mobhide"); }, 3000);
+}
+if (MOB) {
+  $("moblist").onclick = e => { const r = e.target.closest(".mi"); if (r) mobPlay(+r.dataset.i); };
+  $("mobseq").onclick = e => { const b = e.target.closest("button.sq"); if (b) { const x = MOBSEQ[+b.dataset.k]; if (x && x.t !== null) v.currentTime = Math.max(0, x.t - 1); } };
+  $("mobprev").onclick = () => mobPlay(Math.max(0, MOBI - 1));
+  $("mobnext").onclick = () => mobPlay(Math.min(MOBL.length - 1, MOBI + 1));
+  $("mobplay").onclick = () => {
+    if (MOBI < 0 && MOBL.length) { mobPlay(0); return; }
+    if (v.paused) { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); } else v.pause();
+  };
+  $("mobspeed").onclick = () => { v.playbackRate = v.playbackRate === 1 ? 0.5 : 1; $("mobspeed").textContent = v.playbackRate === 1 ? "1x" : "0,5x"; };
+  $("mobvid").addEventListener("click", () => { if ($("mob").classList.contains("mobland")) mobShowCtl(); });
+  $("mobctl").addEventListener("click", () => { if ($("mob").classList.contains("mobland")) mobShowCtl(); });
+  addEventListener("resize", mobLand);
+  mobRefresh();
+  mobLand();
+}
+// pannello Filtri: Set, Atleta, Fondamentale, Voto a pulsanti (scelta multipla per gruppo)
+var MOBCH = { set: [], player: [], fund: [], grade: [] };
+function mobApplyCh() {
+  fltReset(); Object.assign(FLT, MobLib.toFlt(MOBCH, StatsLib));
+  MOBI = -1; MOBL = mobList();
+  $("mobfcount").textContent = MOBL.length + (MOBL[0] && MOBL[0].tch ? " tocchi" : " clip");
+}
+function mobFilters(open) {
+  $("mobflt").hidden = !open;
+  if (!open) return;
+  MOBCH = MobLib.fromFlt(FLT, StatsLib).ch;
+  const S = TS() || SCOUT, o = MobLib.filterOptions(S ? S.points : [], StatsLib);
+  const groups = [["set", "Set"], ["player", "Atleta"], ["fund", "Fondamentale"], ["grade", "Voto"]];
+  $("mobfltbody").innerHTML = groups.map(([k, t]) => "<h3>" + t + '</h3><div class="mchips" data-g="' + k + '">' +
+    o[k].map(([val, lab]) => '<button data-v="' + esc(val) + '"' + (MOBCH[k].includes(val) ? ' class="on"' : "") + ">" + esc(lab) + "</button>").join("") + "</div>").join("");
+  mobApplyCh();
+}
+if (MOB) {
+  $("mobfltbody").onclick = e => {
+    const b = e.target.closest("button"), g = b && b.closest(".mchips");
+    if (!b || !g) return;
+    const k = g.dataset.g, val = b.dataset.v, a = MOBCH[k], i = a.indexOf(val);
+    if (i >= 0) a.splice(i, 1); else a.push(val);
+    b.classList.toggle("on", i < 0);
+    mobApplyCh();
+  };
+  $("mobfclr").onclick = () => {
+    MOBCH = { set: [], player: [], fund: [], grade: [] };
+    $("mobfltbody").querySelectorAll("button.on").forEach(b => b.classList.remove("on"));
+    mobApplyCh();
+  };
+  $("mobfok").onclick = () => { mobFilters(false); mobVideo(); if (MOBL.length) mobPlay(0); };
+  $("mobfbtn").onclick = $("mobsumtxt").onclick = () => mobFilters(true);
+  $("mobadvclr").onclick = () => { fltReset(); MOBI = -1; mobVideo(); };
+}
+// scheda Statistiche: Partita e Catene con gli stessi calcoli del computer; un numero porta alle sue clip
+var MOBST = "partita";
+function mobChips(id, sel) {
+  const el = $(id), cur = $(sel).value;
+  el.innerHTML = [...$(sel).options].map(o => '<button data-v="' + esc(o.value) + '"' + (o.value === cur ? ' class="on"' : "") + ">" +
+    esc(o.value === "" ? (sel === "stset" ? "tutti i set" : "tutta la squadra") : o.textContent) + "</button>").join("");
+}
+function mobStats() {
+  document.querySelectorAll("#mobsttabs button").forEach(b => b.classList.toggle("on", b.dataset.s === MOBST));
+  const season = MOBST === "stagione";
+  $("mobstset").hidden = $("mobstpl").hidden = season;
+  if (season) { $("mobstbody").innerHTML = '<p class="mut">La stagione si vede dal computer o dall\'app.</p>'; return; }
+  if (!hasScout()) { $("mobstbody").innerHTML = '<p class="mut">Nessuno scout con punti in questa partita.</p>'; return; }
+  stFillSelects();
+  mobChips("mobstset", "stset"); mobChips("mobstpl", "stpl");
+  $("mobstbody").innerHTML = MOBST === "catene" ? stCatene() : stPartita();
+}
+function mobGo(f) {
+  fltReset(); Object.assign(FLT, f);
+  MOBI = -1; mobTab("video");
+  if (MOBL.length) mobPlay(0);
+}
+if (MOB) {
+  $("mobsttabs").onclick = e => { const b = e.target.closest("button"); if (b) { MOBST = b.dataset.s; mobStats(); } };
+  $("mobstset").onclick = e => { const b = e.target.closest("button"); if (b) { $("stset").value = b.dataset.v; mobStats(); } };
+  $("mobstpl").onclick = e => { const b = e.target.closest("button"); if (b) { $("stpl").value = b.dataset.v; mobStats(); } };
+  $("mobstbody").onclick = e => { const td = e.target.closest("[data-st]"); if (td) mobGo(JSON.parse(td.dataset.st)); };
+}
 </script>
 </body>
 </html>
