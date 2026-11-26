@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-0820">
+<meta name="vsv-versione" content="20261126-1502">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -204,6 +204,7 @@ button.on{outline:2px solid var(--acc)}
     <div id="side">
       <h1>Revisione rally &mdash; <span id="vname"></span></h1>
       <div class="row" id="vmsg" hidden><button class="pri" id="vpick">Scegli il video della partita&hellip;</button>
+        <button class="pri" id="vstream" hidden>Guarda il video da OneDrive</button>
         <span class="mut">Dal web il video non si carica da solo: scegli <code>video/&hellip;mp4</code> oppure la copia ridotta
         <code>lavoro/proxy.mp4</code> (stessi tempi, molto piu' leggera).</span></div>
       <div class="row">
@@ -230,6 +231,7 @@ button.on{outline:2px solid var(--acc)}
         <button id="seasonstat" title="Statistiche di tutte le partite della cartella della stagione (non serve aprire una partita)">Statistiche della stagione&hellip;</button>
         <input type="file" id="jfile" accept=".json,application/json" hidden>
         <button id="pick">Scegli il video&hellip;</button>
+        <button id="odlink" title="Collega il video condiviso su OneDrive: da fuori casa basta il .json, il video si guarda in streaming">Video su OneDrive&hellip;</button>
         <input type="file" id="file" accept="video/*,.mp4,.m4v,.mov,.mkv,.webm,application/octet-stream" hidden>
         <button id="reset" title="Torna alla proposta automatica">Ripristina originale</button>
         <button id="compact" title="A revisione finita: crea un video con le sole clip tenute (piu' 2 s per lato) e il suo json, per occupare meno spazio">Compatta video&hellip;</button>
@@ -2908,7 +2910,8 @@ function markDirty(d) {
 }
 const projectData = () => ({ video_name: D.video_name, duration: D.duration, threshold: D.threshold, min_clip_s: D.min_clip_s,
   motion: D.motion, motion_bin: D.motion_bin, motion_max: D.motion_max, whistles: D.whistles, seg: D.seg, fps: D.fps,
-  cells: D.cells, zones: D.zones, deleted: D.deleted || [], compact: D.compact || null, court: D.court || null });
+  cells: D.cells, zones: D.zones, deleted: D.deleted || [], compact: D.compact || null, court: D.court || null,
+  video_link: D.video_link || null });
 let loadedRev = +(D.meta && D.meta.revision || 0);          // revisione del file aperto: serve a non sovrascrivere un salvataggio fatto altrove
 const toJSON = rev => JSON.stringify({ meta: Object.assign({}, D.meta, { reviewed: true, revision: rev, saved_at: new Date().toISOString() },
   SCOUT_IMP ? { scout: scoutMeta() } : {}, LIVE ? { live: LIVE } : {}, MATCHMETA ? { match: MATCHMETA } : {}, { project: projectData() }),
@@ -2993,7 +2996,7 @@ function loadText(text, name) {
   APP_MATCH = null;                                                 // un file aperto a mano non si salva sopra la partita aperta dall'app
   const pj = d.meta && d.meta.project;
   if (pj && (D.empty || pj.video_name !== D.video_name)) setProject(pj, d.rallies);
-  else if (pj) { ["threshold", "motion", "motion_bin", "motion_max", "cells", "zones", "seg", "fps", "court"].forEach(k => { if (k in pj) D[k] = pj[k]; }); D.deleted = pj.deleted || []; thrPrev = null; }
+  else if (pj) { ["threshold", "motion", "motion_bin", "motion_max", "cells", "zones", "seg", "fps", "court", "video_link"].forEach(k => { if (k in pj) D[k] = pj[k]; }); D.deleted = pj.deleted || []; thrPrev = null; }
   else if (D.empty) { alert("Questo file non contiene i dati della partita (movimento, fischi). Aprilo da review.html, salva, e poi riaprilo qui."); return false; }
   loadedRev = +(d.meta && d.meta.revision || 0);
   if (name) OPENED_NAME = String(name);
@@ -3005,14 +3008,76 @@ function loadText(text, name) {
   LIVE = (d.meta && d.meta.live) || null; SEL = INS = null; liveRefresh(); C = null;
   sel = null; lastSave = name ? hhmm() : lastSave;
   if (sorted().length) { const w = v1 - v0; v0 = clamp(R[0].start - 30, 0, Math.max(0, DUR - w)); v1 = v0 + w; seek(R[0].start); }
+  $("vstream").hidden = !D.video_link;
   changed(); markDirty(false); return true;
 }
 async function openFile() {
   if (window.showOpenFilePicker) {
     try { const [h] = await showOpenFilePicker({ types: JSON_TYPES }); const f = await h.getFile();
-      if (loadText(await f.text(), h.name)) fh = h; status(); } catch (e) { /* annullato */ }
+      if (loadText(await f.text(), h.name)) { fh = h; maybeStream(); } status(); } catch (e) { /* annullato */ }
   } else $("jfile").click();
 }
+// ---- video in streaming da OneDrive: link condiviso "chiunque abbia il link" salvato nel .json (meta.project.video_link).
+// L'indirizzo my.microsoftpersonalcontent.com non e' documentato da Microsoft: se smette di funzionare resta "Scegli il video...".
+function odStreamUrl(link) {
+  const m = /^https:\/\/1drv\.ms\/[a-z]\/c\/([0-9a-f]+)\/([A-Za-z0-9_-]+)/i.exec(String(link || "").trim());
+  return m ? "https://my.microsoftpersonalcontent.com/personal/" + m[1].toLowerCase() + "/_layouts/15/download.aspx?share=" + m[2] : null;
+}
+const isStreamSrc = u => /microsoftpersonalcontent\.com/i.test(u || "");
+function odProbe(url) {                                              // il video parte? quanto dura?
+  return new Promise(res => {
+    const t = document.createElement("video");
+    t.muted = true; t.preload = "metadata";
+    let done = false;
+    const fin = r => { if (done) return; done = true; t.removeAttribute("src"); t.load(); res(r); };
+    t.addEventListener("loadedmetadata", () => fin({ ok: t.duration > 0, dur: t.duration }), { once: true });
+    t.addEventListener("error", () => fin({ ok: false, why: "OneDrive non da' il video" }), { once: true });
+    setTimeout(() => fin({ ok: false, why: "nessuna risposta in 30 secondi" }), 30000);
+    t.src = url;
+  });
+}
+function streamVideo() {
+  const u = odStreamUrl(D.video_link);
+  if (u) v.src = u;
+}
+function maybeStream() {                                             // dopo "Apri...": se sul PC non c'e' il video, parte quello su OneDrive
+  if (D.video_link && (!v.getAttribute("src") || v.error)) streamVideo();
+}
+v.addEventListener("loadstart", () => {
+  const st = isStreamSrc(v.currentSrc || v.src);
+  $("vname").textContent = D.video_name + (st ? " (in streaming da OneDrive)" : "");
+});
+v.addEventListener("error", () => {
+  if (!isStreamSrc(v.currentSrc || v.src)) return;
+  $("vname").textContent = D.video_name;
+  alert("Il video da OneDrive non parte: manca la rete, la condivisione e' stata tolta oppure Microsoft ha cambiato qualcosa.\nUsa \"Scegli il video...\" con il file sul disco.");
+});
+async function linkOneDrive() {
+  if (D.empty) { alert("Apri prima una partita (pulsante Apri...)."); return; }
+  const s = prompt("Incolla il link condiviso del video su OneDrive.\n(Su OneDrive: Condividi -> \"Chiunque abbia il link\" -> Copia link. Va bene anche lavoro/proxy.mp4, piu' leggero.)\nLascia vuoto per togliere il collegamento.", D.video_link || "");
+  if (s === null) return;
+  const link = s.trim();
+  if (!link) {
+    if (D.video_link && confirm("Togliere il collegamento al video su OneDrive?")) { D.video_link = null; $("vstream").hidden = true; markDirty(true); }
+    return;
+  }
+  const u = odStreamUrl(link);
+  if (!u) { alert("Questo non e' un link condiviso di OneDrive personale: deve cominciare con https://1drv.ms/v/c/..."); return; }
+  const b = $("odlink"), old = b.textContent;
+  b.disabled = true; b.textContent = "Controllo il link...";
+  const r = await odProbe(u);
+  b.disabled = false; b.textContent = old;
+  if (!r.ok) { alert("Dal link il video non parte (" + r.why + ").\nControlla che la condivisione sia \"Chiunque abbia il link\"."); return; }
+  const mm = t => Math.floor(t / 60) + ":" + String(Math.round(t % 60)).padStart(2, "0");
+  if (D.duration > 1 && Math.abs(r.dur - D.duration) > 3 &&
+      !confirm("Il video del link dura " + mm(r.dur) + ", quello di questa partita " + mm(D.duration) + ": sembra un altro video.\nCollegarlo comunque?")) return;
+  D.video_link = link; $("vstream").hidden = false; markDirty(true);
+  alert("Video collegato. Il link entra nel file .json quando premi Salva.\n\nAttenzione: chi ha il link, o il file .json, puo' vedere il video senza password. Non mandare il .json in giro.");
+  if (!v.getAttribute("src") || v.error) streamVideo();
+}
+$("odlink").onclick = linkOneDrive;
+$("vstream").onclick = streamVideo;
+
 // cartella della partita: lavoro salvato (.json) e video (sottocartella video) caricati insieme
 const VIDEO_EXT = /\.(mp4|m4v|mov|mkv|webm|avi)$/i;
 async function openFolder() {
@@ -3031,6 +3096,7 @@ async function openFolder() {
     if (d) for await (const [name, h] of d.entries()) if (h.kind === "file" && VIDEO_EXT.test(name)) vids.push(h);
   }
   const vh = vids.find(h => h.name === D.video_name) || vids[0];
+  if (!vh && D.video_link) { streamVideo(); return; }               // niente video sul disco: lo guardo da OneDrive
   if (!vh) { alert("Non trovo nessun video nella cartella (ne' nella sottocartella video): scegli il video a mano."); return; }
   v.src = URL.createObjectURL(await vh.getFile());
 }
@@ -3043,7 +3109,7 @@ $("appback").onclick = () => {
 };
 $("saveas").onclick = () => saveFile(true);
 $("open").onclick = openFile;
-$("jfile").onchange = async e => { const f = e.target.files[0]; if (f) { loadText(await f.text(), f.name); fh = null; status(); } e.target.value = ""; };
+$("jfile").onchange = async e => { const f = e.target.files[0]; if (f) { if (loadText(await f.text(), f.name)) maybeStream(); fh = null; status(); } e.target.value = ""; };
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---- timeline
