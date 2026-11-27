@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261127-1209">
+<meta name="vsv-versione" content="20261127-1647">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -69,6 +69,7 @@ tr.off .nm{text-decoration:line-through}
 input[type=text],input[type=number]{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 6px;width:130px}
 .legend span{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px;vertical-align:baseline}
 dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;max-width:640px;width:92vw}
+#ledlg.side{position:fixed;left:auto;right:10px;top:10px;margin:0;width:min(560px,44vw);max-height:calc(100vh - 20px);overflow:auto;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.45)}
 dialog::backdrop{background:rgba(0,0,0,.5)}
 #tchdlg.hov{position:fixed;margin:0;pointer-events:none;z-index:50;box-shadow:0 6px 24px rgba(0,0,0,.45);width:auto;max-width:min(640px,92vw)}
 #tchdlg.hov .row{display:none}
@@ -419,6 +420,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
         <kbd>D</kbd> difesa <kbd>E</kbd> alzata <kbd>W</kbd> muro (per chi batte la lettera si puo' saltare). Battuta, attacco, pallonetto, free ball: zona di partenza e
         di arrivo (1-9), <kbd>X</kbd> tra le due se l'attacco e' murato, <kbd>T</kbd> cambia il tipo di battuta. Voto: <kbd>#</kbd> <kbd>+</kbd> <kbd>!</kbd> <kbd>-</kbd> <kbd>/</kbd> <kbd>=</kbd>
         oppure <kbd>1</kbd>-<kbd>6</kbd>. Esempio: <kbd>12</kbd> <kbd>A</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>#</kbd>.<br>
+        Con il campo segnato sul video (Griglia &rarr; Segna il campo) partenza e arrivo si cliccano anche sul video, a terra (piedi o punto di caduta); <kbd>Maiusc</kbd>+clic sul video = muro.<br>
         <kbd>Backspace</kbd> annulla (dentro un tocco: l'ultimo tasto) &middot; <kbd>Esc</kbd> abbandona il tocco &middot; <kbd>F1</kbd>/<kbd>F2</kbd> nostro ER/PT &middot;
         <kbd>F3</kbd>/<kbd>F4</kbd> ER/PT avversario &middot; <kbd>F5</kbd>/<kbd>F6</kbd> time-out nostro/avversario &middot; <kbd>F7</kbd> provvedimento &middot; <kbd>F8</kbd> cambio &middot; <kbd>F9</kbd> nota.<br>
         Correzione: clic su una riga dell'elenco per selezionarla, poi Modifica, Elimina (<kbd>Canc</kbd>), Inserisci prima, All'istante del video; <kbd>Esc</kbd> toglie la selezione o chiude l'inserimento.<br>
@@ -3493,6 +3495,7 @@ function zoomTo(s2, fx, fy) {                                   // fx, fy: punto
     zv.onpointerup = u => {
       zv.onpointermove = zv.onpointerup = null; zv.classList.remove("drag");
       if (!moved && CAL) { calClick(pt(u)); return; }               // segnatura del campo: il clic e' un punto
+      if (!moved && vcClick(pt(u), u.shiftKey)) return;                           // tocco con la traccia: partenza, muro, arrivo
       if (!moved) { if (cine) $("cplay").click(); else if (v.paused) v.play(); else v.pause(); }      // un clic breve = play/pausa
     };
   });
@@ -3510,6 +3513,8 @@ const CPTS = [[0, 0, "angolo tra <b>laterale A</b> e <b>fondo 1</b>"], [6, 0, "<
   [18, 0, "angolo tra <b>laterale A</b> e <b>fondo 2</b>"], [18, 9, "angolo tra <b>laterale B</b> e <b>fondo 2</b>"],
   [12, 9, "<b>laterale B</b>: linea dei 3 m della meta' del fondo 2"], [9, 9, "<b>laterale B</b>: a terra sotto la rete"],
   [6, 9, "<b>laterale B</b>: linea dei 3 m della meta' del fondo 1"], [0, 9, "angolo tra <b>laterale B</b> e <b>fondo 1</b>"]];
+// dopo i 10 punti a terra, due facoltativi: la cima della rete (bordo alto della banda) ai due laterali
+const CPTN = ["cima della rete (bordo alto della banda bianca) sul <b>laterale A</b>", "cima della rete (bordo alto della banda bianca) sul <b>laterale B</b>"];
 var GRID = false, CAL = null, courtCache = { key: "", H: null, err: 0 };
 try { GRID = localStorage.getItem("volleycut:grid") === "1"; } catch (e) { /* spenta */ }
 // omografia (h33 = 1) dai punti src -> dst con i minimi quadrati
@@ -3550,7 +3555,8 @@ function vidToScreen(px, py) {
 }
 function gridDraw() {
   const c = $("vgc"), pts = CAL ? CAL.p : D.court && D.court.p, H = courtH(pts);
-  const show = !!v.videoWidth && (CAL || (GRID && H));
+  const marks = CAL ? [] : vcMarks();
+  const show = !!v.videoWidth && (CAL || (GRID && H) || marks.length);
   c.classList.toggle("on", !!show); $("vgon").classList.toggle("pri", GRID && !!H);
   if (!show) return;
   const w = v.clientWidth, h = v.clientHeight, d = devicePixelRatio || 1;
@@ -3558,7 +3564,7 @@ function gridDraw() {
   if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
   const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
   const r = zoomRect(); g.save(); g.beginPath(); g.rect(r.ox, r.oy, r.cw, Math.min(r.ch, h - (v.controls ? 48 : 0) - r.oy)); g.clip();
-  if (H) {
+  if (H && (GRID || CAL)) {
     const S = (X, Y) => { const q = hApply(H, X, Y); return q ? vidToScreen(q[0], q[1]) : null; };
     const line = (a, b, col, wd, dash) => { const p = S(...a), q = S(...b); if (!p || !q) return;
       g.strokeStyle = col; g.lineWidth = wd; g.setLineDash(dash || []); g.beginPath(); g.moveTo(...p); g.lineTo(...q); g.stroke(); };
@@ -3568,6 +3574,9 @@ function gridDraw() {
     [0, 6, 12, 18].forEach(X => line([X, 0], [X, 9], main, 2));
     [0, 9].forEach(Y => line([0, Y], [18, Y], main, 2));
     line([9, -0.6], [9, 9.6], "rgba(255,255,255,.95)", 3);                // rete
+    const nt = CAL ? CAL.n : D.court && D.court.net;                       // cima della rete, se segnata
+    if (nt && nt[0] && nt[1]) { const p = vidToScreen(...nt[0]), q = vidToScreen(...nt[1]);
+      g.strokeStyle = "rgba(255,255,255,.8)"; g.lineWidth = 2; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(...p); g.lineTo(...q); g.stroke(); }
     // numeri delle zone: per ciascuna meta' si guarda la rete; la destra si ricava dal verso dell'immagine
     // (la telecamera e' sopra il pavimento: l'immagine del campo non e' specchiata)
     const o = S(9, 4.5), ax = S(10, 4.5), ay = S(9, 5.5);
@@ -3587,9 +3596,16 @@ function gridDraw() {
   }
   if (CAL) {
     g.setLineDash([]); g.font = "bold 13px system-ui,sans-serif"; g.textAlign = "left"; g.textBaseline = "bottom";
-    Object.keys(CAL.p).forEach(i => { const q = vidToScreen(...CAL.p[i]);
+    const all = Object.keys(CAL.p).map(i => [+i, CAL.p[i]]).concat(Object.keys(CAL.n).map(i => [10 + +i, CAL.n[i]]));
+    all.forEach(([i, pt]) => { const q = vidToScreen(...pt);
       g.fillStyle = "#ff3b30"; g.beginPath(); g.arc(q[0], q[1], 5, 0, 7); g.fill();
-      g.lineWidth = 3; g.strokeStyle = "#000"; g.strokeText(+i + 1, q[0] + 6, q[1] - 4); g.fillStyle = "#fff"; g.fillText(+i + 1, q[0] + 6, q[1] - 4); });
+      g.lineWidth = 3; g.strokeStyle = "#000"; g.strokeText(i + 1, q[0] + 6, q[1] - 4); g.fillStyle = "#fff"; g.fillText(i + 1, q[0] + 6, q[1] - 4); });
+  }
+  if (marks.length) {                                                     // tocco in composizione o in correzione
+    g.setLineDash([]);
+    const sp = marks.map(m => vidToScreen(...m.px));
+    if (sp.length > 1) { g.strokeStyle = "rgba(255,255,255,.9)"; g.lineWidth = 2; g.beginPath(); g.moveTo(...sp[0]); sp.slice(1).forEach(q => g.lineTo(...q)); g.stroke(); }
+    marks.forEach((m, i) => { g.fillStyle = m.col; g.strokeStyle = "#000"; g.lineWidth = 2; g.beginPath(); g.arc(sp[i][0], sp[i][1], 7, 0, 7); g.fill(); g.stroke(); });
   }
   g.restore();
 }
@@ -3600,36 +3616,125 @@ function gridToggle() {
 }
 function calMsg() {
   const H = courtH(CAL.p);
+  const NT = CPTS.length + CPTN.length;
   $("vcalmsg").innerHTML = CAL.i < CPTS.length
-    ? "Punto " + (CAL.i + 1) + " di " + CPTS.length + ": clicca a terra sull'" + CPTS[CAL.i][2] + ". " +
+    ? "Punto " + (CAL.i + 1) + " di " + NT + ": clicca a terra sull'" + CPTS[CAL.i][2] + ". " +
       (CAL.i === 0 ? "<br>Laterale A e fondo 1 li scegli tu (di solito la laterale e il fondo piu' vicini alla telecamera); poi si gira intorno al campo. Rotella e trascinamento per lo zoom. " : "")
+    : CAL.i < NT
+    ? "Punto " + (CAL.i + 1) + " di " + NT + " (facoltativo: col Maiusc+clic sul video il muro va nel punto giusto lungo la rete): clicca la " + CPTN[CAL.i - CPTS.length] + ". " +
+      "Se non ti serve premi Fine. "
     : "Punti finiti. ";
   $("vcalmsg").innerHTML += H ? "<br>Griglia calcolata: scarto massimo " + Math.round(courtCache.err) + " px" + (courtCache.err > 12 ? " (alto: controlla i punti)" : "") + "." : "";
   $("vcalok").disabled = !courtValid(CAL.p);
 }
 function calStart() {
   if (!v.videoWidth) { alert("Carica prima il video."); return; }
-  v.pause(); CAL = { i: 0, p: {} }; $("vcal").hidden = false; calMsg(); gridDraw();
+  v.pause(); CAL = { i: 0, p: {}, n: {} };
+  if (D.court && courtValid(D.court.p) && !(D.court.net && D.court.net.length === 2) &&
+      confirm("Il campo e' gia' segnato. Aggiungo solo la cima della rete (2 clic), che serve per il muro cliccato sul video?\n\nAnnulla = rifai tutti i punti."))
+    CAL = { i: CPTS.length, p: Object.assign({}, D.court.p), n: {} };
+  $("vcal").hidden = false; calMsg(); gridDraw();
+}
+// clic sull'immagine visibile (0-1, con lo zoom) -> pixel del video
+function vidPx(q) {
+  const hw = 0.5 / Z.s, fx = Z.s > 1 ? Z.cx - hw + q.fx / Z.s : q.fx, fy = Z.s > 1 ? Z.cy - hw + q.fy / Z.s : q.fy;
+  return [Math.round(fx * v.videoWidth * 10) / 10, Math.round(fy * v.videoHeight * 10) / 10];
 }
 function calClick(q) {
-  if (CAL.i >= CPTS.length) return;
-  const hw = 0.5 / Z.s, fx = Z.s > 1 ? Z.cx - hw + q.fx / Z.s : q.fx, fy = Z.s > 1 ? Z.cy - hw + q.fy / Z.s : q.fy;
-  CAL.p[CAL.i] = [Math.round(fx * v.videoWidth * 10) / 10, Math.round(fy * v.videoHeight * 10) / 10];
+  if (CAL.i >= CPTS.length + CPTN.length) return;
+  if (CAL.i < CPTS.length) CAL.p[CAL.i] = vidPx(q); else CAL.n[CAL.i - CPTS.length] = vidPx(q);
   CAL.i++; calMsg(); gridDraw();
 }
 function calEnd(ok) {
   if (ok) {
     if (!courtValid(CAL.p)) { alert("Servono almeno 4 punti, almeno 2 su ciascuna laterale."); return; }
     D.court = { v: 1, p: CAL.p, w: v.videoWidth, h: v.videoHeight }; GRID = true;
+    if (CAL.n[0] && CAL.n[1]) D.court.net = [CAL.n[0], CAL.n[1]];
     try { localStorage.setItem("volleycut:grid", "1"); } catch (e) { /* niente */ }
     store.save(); markDirty(true);
   }
   CAL = null; $("vcal").hidden = true; gridDraw();
 }
+// ---- clic sul video per partenza, muro e arrivo di un tocco. Il campo disegnato (LV.GEO) e' una vista dall'alto non
+// specchiata, con la nostra meta' dal lato del video in cui giochiamo: il fondo a sinistra nel video va a sinistra e il
+// verso della larghezza si prende dall'immagine (come i numeri delle zone sulla griglia). La griglia vale solo a terra:
+// per il muro serve la cima della rete, che da' un secondo piano (quello della rete, verticale).
+var vcCache = { key: "", M: null };
+function vcMap() {
+  const c = D.court, H = c && courtH(c.p);
+  if (!H) return null;
+  const key = JSON.stringify(c);
+  if (vcCache.key === key) return vcCache.M;
+  const ks = Object.keys(c.p).map(Number), G = LV.GEO, dp = 50 - G.end0;
+  const Hi = homography(ks.map(i => c.p[i]), ks.map(i => CPTS[i].slice(0, 2)));          // video -> campo (metri)
+  const a = hApply(H, 0, 4.5), b = hApply(H, 18, 4.5), o = hApply(H, 9, 4.5), ax = hApply(H, 10, 4.5), ay = hApply(H, 9, 5.5);
+  let M = null;
+  if (Hi && a && b && o && ax && ay) {
+    const sA = a[0] < b[0] ? 1 : -1;
+    const det = (ax[0] - o[0]) * (ay[1] - o[1]) - (ax[1] - o[1]) * (ay[0] - o[0]);
+    const sB = (det > 0 ? 1 : -1) * sA;
+    const toB = Y => sB > 0 ? G.side0 + Y / 9 * 75 : G.side1 - Y / 9 * 75, fromB = B => sB > 0 ? (B - G.side0) / 75 * 9 : (G.side1 - B) / 75 * 9;
+    M = { H, Hi, N: null, Ni: null,
+      toD: (X, Y) => [clamp(50 + sA * (X - 9) / 9 * dp, 0, 100), clamp(toB(Y), 0, 100)],
+      fromD: (A, B) => [9 + sA * (A - 50) / dp * 9, fromB(B)] };
+    const fa = hApply(H, 9, 0), fb = hApply(H, 9, 9);
+    if (c.net && c.net.length === 2 && fa && fb) {
+      const src = [[0, 0], [9, 0], [0, 1], [9, 1]], dst = [fa, fb, c.net[0], c.net[1]];
+      M.N = homography(src, dst); M.Ni = homography(dst, src);                               // (lungo la rete, altezza 0-1) <-> video
+    }
+  }
+  vcCache = { key, M };
+  return M;
+}
+// trasformazione all'indietro (video -> campo): il segno di w non dice nulla
+const hInv = (H, x, y) => { const w = H[2][0] * x + H[2][1] * y + H[2][2]; return Math.abs(w) > 1e-12 ? [(H[0][0] * x + H[0][1] * y + H[0][2]) / w, (H[1][0] * x + H[1][1] * y + H[1][2]) / w] : null; };
+// pixel del video -> { p: punto del campo disegnato, net: true se e' il muro }. Dalla telecamera in alto la meta' lontana si
+// vede attraverso la rete: il clic semplice e' sempre a terra, il muro e' Maiusc+clic (p nullo se la cima della rete non e' segnata)
+function vcPoint(px, py, blk) {
+  const M = vcMap(); if (!M) return null;
+  if (blk) {
+    const q = M.Ni && hInv(M.Ni, px, py);
+    return { p: q ? [50, Math.round(M.toD(9, clamp(q[0], 0, 9))[1] * 10) / 10] : null, net: true };
+  }
+  const c = hInv(M.Hi, px, py); if (!c) return null;
+  const d = M.toD(c[0], c[1]);
+  if (Math.abs(d[0] - 50) < 3) d[0] = d[0] < 50 ? 46.9 : 53.1;          // a terra vicino alla rete: prima linea, non la fascia del muro
+  return { p: [Math.round(d[0] * 10) / 10, Math.round(d[1] * 10) / 10], net: false };
+}
+// punto del campo disegnato -> pixel del video (il muro sulla rete, a 3/4 d'altezza, se la cima e' segnata)
+function vcPx(p, net) {
+  const M = vcMap(); if (!M || !p) return null;
+  const c = M.fromD(p[0], p[1]);
+  return net && M.N ? hApply(M.N, c[1], 0.75) : hApply(M.H, c[0], c[1]);
+}
+function vcTarget() {                                      // a chi va il clic: finestra di correzione o tocco in composizione
+  if (!vcMap() || !v.videoWidth) return null;
+  if ($("ledlg").open && $("ledlg").classList.contains("side") && LEC && $("lecr") && !$("lecr").hidden) return "le";
+  if (svOn && !$("ledlg").open && C && C.n && C.step !== "vote") return "sv";
+  return null;
+}
+function vcClick(q, blk) {
+  const t = vcTarget(), r = t && vcPoint(...vidPx(q), blk);
+  if (!r) return false;
+  if (r.net) {                                             // muro: solo per attacco e pallonetto, dopo la partenza
+    if (t === "le") {
+      if (LEC.next === 1 && "AP".includes($("les").value) && !LEC.pm) { LEC.pm = r.p; LEC.setm = true; $("lepm").checked = true; leCourt(); }
+    } else if ((C.s === "A" || C.s === "P") && C.p0 && !C.p1 && !C.pm) { if (r.p) C.pm = r.p; else C.blk = true; svRender(); }
+  } else if (t === "le") { leClick(r.p); leCourt(); } else trackPoint(r.p);
+  gridDraw();
+  return true;
+}
+function vcMarks() {
+  const t = vcTarget(); if (!t) return [];
+  const pts = t === "le" ? (LEC.shown || []) : [[C.p0, "p0"], [C.pm, "pm"], [C.p1, "p1"]];
+  const COL = { p0: "#34c759", pm: "#ffcc00", p1: "#ff3b30" };
+  return pts.filter(x => x[0]).map(([p, k]) => ({ px: vcPx(p, k === "pm"), col: COL[k] })).filter(m => m.px);
+}
 $("vgon").onclick = gridToggle;
 $("vgset").onclick = () => (CAL ? calEnd(false) : calStart());
-$("vcalskip").onclick = () => { if (CAL.i < CPTS.length) { delete CAL.p[CAL.i]; CAL.i++; calMsg(); gridDraw(); } };
-$("vcalback").onclick = () => { if (CAL.i > 0) { CAL.i--; delete CAL.p[CAL.i]; calMsg(); gridDraw(); } };
+const calDel = i => { if (i < CPTS.length) delete CAL.p[i]; else delete CAL.n[i - CPTS.length]; };
+$("vcalskip").onclick = () => { if (CAL.i < CPTS.length + CPTN.length) { calDel(CAL.i); CAL.i++; calMsg(); gridDraw(); } };
+$("vcalback").onclick = () => { if (CAL.i > 0) { CAL.i--; calDel(CAL.i); calMsg(); gridDraw(); } };
 $("vcalok").onclick = () => calEnd(true);
 $("vcalno").onclick = () => calEnd(false);
 window.addEventListener("resize", gridDraw);
@@ -4050,18 +4155,26 @@ function openEvDlg(i) {
       if (!LEC.down) return;
       const p = lePt(ev), d = LEC.down; LEC.down = null;
       if (Math.hypot(p[0] - d[0], (p[1] - d[1]) * 4 / 7) > 4) { leSetPt(0, d); leSetPt(1, p); LEC.next = 0; }   // trascinamento = partenza e arrivo
-      else if (LEC.next === 1 && "AP".includes($("les").value) && !LEC.pm && Math.abs(p[0] - 50) < 3) {
-        LEC.pm = [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; LEC.setm = true; $("lepm").checked = true;   // fascia della rete: muro
-      } else {
-        if (LEC.next === 0) { LEC.pm = null; LEC.setm = true; $("lepm").checked = false; }     // traccia nuova: il muro si rimette
-        leSetPt(LEC.next, p); LEC.next = 1 - LEC.next;
-      }
+      else leClick(p);
       leCourt();
     };
     leShow(); leCourt();
   }
-  $("ledlg").showModal();
+  // con il campo segnato sul video la finestra sta di lato: il video resta cliccabile
+  const dl = $("ledlg"), side = e.k === "t" && !!vcMap() && !!v.videoWidth;
+  if (dl.open) dl.close();
+  dl.classList.toggle("side", side);
+  if (side) { v.pause(); dl.show(); if (LEC) leCourt(); } else dl.showModal();
 }
+function leClick(p) {
+  if (LEC.next === 1 && "AP".includes($("les").value) && !LEC.pm && Math.abs(p[0] - 50) < 3) {
+    LEC.pm = [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; LEC.setm = true; $("lepm").checked = true;   // fascia della rete: muro
+  } else {
+    if (LEC.next === 0) { LEC.pm = null; LEC.setm = true; $("lepm").checked = false; }     // traccia nuova: il muro si rimette
+    leSetPt(LEC.next, p); LEC.next = 1 - LEC.next;
+  }
+}
+$("ledlg").addEventListener("close", () => { if (!$("ledlg").open) $("ledlg").classList.remove("side"); gridDraw(); });   // riaperta subito per un altro tocco: resta di lato
 // campo cliccabile nella finestra: il clic mette il punto preciso e sceglie la zona (partenza, poi arrivo)
 let LEC = null;
 const lePt = ev => { const r = $("lecourt").getBoundingClientRect(); return [clamp((ev.clientX - r.left) / r.width * 100, 0, 100), clamp((ev.clientY - r.top) / r.height * 100, 0, 100)]; };
@@ -4100,8 +4213,9 @@ function leCourt() {
   if (p0) s += '<circle cx="' + sx(p0[0]) + '" cy="' + sy(p0[1]) + '" r="9" class="tp0"/>';
   if (p1) s += '<circle cx="' + sx(p1[0]) + '" cy="' + sy(p1[1]) + '" r="9" class="tp1"/>';
   c.innerHTML = s;
+  LEC.shown = [[p0, "p0"], [pm, "pm"], [p1, "p1"]];
   const ap = "AP".includes($("les").value);
-  $("lechint").textContent = "Clic sul campo: " + (LEC.next ? (ap && !LEC.pm ? "ora il MURO (clic sulla fascia della rete, punto giallo) oppure l'ARRIVO (punto rosso)" : "ora l'ARRIVO (punto rosso)") : "la PARTENZA (punto verde)") +
+  $("lechint").textContent = ($("ledlg").classList.contains("side") ? "Clic sul campo o sul video (a terra: piedi o punto di caduta; Maiusc+clic sul video = muro): " : "Clic sul campo: ") + (LEC.next ? (ap && !LEC.pm ? "ora il MURO (clic sulla fascia della rete, punto giallo) oppure l'ARRIVO (punto rosso)" : "ora l'ARRIVO (punto rosso)") : "la PARTENZA (punto verde)") +
     ". Il punto resta dove clicchi; sulla rete o nel proprio campo la zona resta vuota" + (ap ? ", tranne dopo il muro" : "") + ".";
 }
 function leShow() {
@@ -4847,7 +4961,10 @@ $("lsanok").onclick = () => {
 document.addEventListener("keydown", e => {
   if (CAL && e.key === "Escape") { e.preventDefault(); calEnd(false); return; }
   if (svKey(e)) return;
-  if ($("zdlg").open || $("ledlg").open) return;
+  if ($("ledlg").open && $("ledlg").classList.contains("side")) {          // finestra di lato: restano i tasti del video
+    if (e.key === "Escape") { $("ledlg").close(); return; }
+    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || ![" ", ",", ".", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  } else if ($("zdlg").open || $("ledlg").open) return;
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "checkbox") return;
   if (document.activeElement.closest && document.activeElement.closest("details.msel")) { if (e.key === "Escape") { mselClose(); document.activeElement.blur(); } return; }
   const k = e.key.toLowerCase(), all = SCOUT && fltOn() ? sorted().filter(isVisible) : sorted(), i = all.indexOf(sel);
