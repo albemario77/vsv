@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261126-2349">
+<meta name="vsv-versione" content="20261127-1209">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -2344,10 +2344,20 @@ function stepClip(d) {
   if (i < 0) i = d > 0 ? -1 : P.length; else i += d;
   playClip(P[clamp(i, 0, P.length - 1)]);
 }
+// elemento in riproduzione; con i tocchi le finestre si sovrappongono: vale quello cliccato finche' non arriva il suo istante,
+// poi l'ultimo tocco gia' avvenuto
+function cineCur(P, t, sel) {
+  const inW = r => t >= r.start - 0.05 && t < r.end;
+  if (!P.length || !P[0].tch) return P.find(inW);
+  if (sel && sel.tch && P.includes(sel) && inW(sel) && t <= sel.tch.t + 0.3) return sel;
+  let best = null;
+  for (const r of P) if (inW(r) && r.tch.t <= t + 0.3 && (!best || r.tch.t > best.tch.t)) best = r;
+  return best || P.find(inW);
+}
 function cineTick() {
   const P = playlist(), t = v.currentTime;
   if (!v.paused) {
-    const cur = P.find(r => t >= r.start - 0.05 && t < r.end);
+    const cur = cineCur(P, t, sel);
     if (!cur) {
       const nx = P.find(r => r.start > t);
       if ($("cauto").checked && nx) playClip(nx); else v.pause();
