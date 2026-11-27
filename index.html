@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261127-1647">
+<meta name="vsv-versione" content="20261127-1920">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -477,7 +477,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
   <div class="row"><label>Palleggiatrice <select id="lsset"></select></label><label>Libero <select id="lslib"></select></label><label>Secondo libero <select id="lslib2"></select></label></div>
   <div class="row"><span>Il libero si cambia con</span><select id="lsp1"></select><span>e</span><select id="lsp2"></select><span class="mut" id="lspair"></span></div>
   <div class="row">Batte per primo: <label><input type="radio" name="lsserve" value="1"> noi</label><label><input type="radio" name="lsserve" value="0"> loro</label></div>
-  <div class="row">Nel video giochiamo: <label><input type="radio" name="lsside" value="L"> a sinistra</label><label><input type="radio" name="lsside" value="R"> a destra</label></div>
+  <div class="row">Nel video giochiamo: <label><input type="radio" name="lsside" value="L"> a sinistra</label><label><input type="radio" name="lsside" value="R"> a destra</label> <span class="mut">(telecamera dietro un fondo: a sinistra = metà vicina)</span></div>
   <p class="bad" id="lserr"></p>
   <div class="row"><button class="pri" id="lsok">Inizia il set</button><button id="lsno">Annulla</button></div>
 </dialog>
@@ -3670,7 +3670,9 @@ function vcMap() {
   const a = hApply(H, 0, 4.5), b = hApply(H, 18, 4.5), o = hApply(H, 9, 4.5), ax = hApply(H, 10, 4.5), ay = hApply(H, 9, 5.5);
   let M = null;
   if (Hi && a && b && o && ax && ay) {
-    const sA = a[0] < b[0] ? 1 : -1;
+    // fondo 1 «a sinistra»? Campo di traverso nel video: conta l'orizzontale. Campo in verticale (telecamera dietro un
+    // fondo): «a sinistra» e' la meta' vicina, in basso nell'immagine
+    const sA = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? (a[0] < b[0] ? 1 : -1) : (a[1] > b[1] ? 1 : -1);
     const det = (ax[0] - o[0]) * (ay[1] - o[1]) - (ax[1] - o[1]) * (ay[0] - o[0]);
     const sB = (det > 0 ? 1 : -1) * sA;
     const toB = Y => sB > 0 ? G.side0 + Y / 9 * 75 : G.side1 - Y / 9 * 75, fromB = B => sB > 0 ? (B - G.side0) / 75 * 9 : (G.side1 - B) / 75 * 9;
