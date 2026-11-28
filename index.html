@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261128-0759">
+<meta name="vsv-versione" content="20261128-1604">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -10,6 +10,20 @@
 @media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#eceae3;--mut:#9b9a92;--card:#201f1d;--line:#3a3935;--ok:#4cb85c;--dub:#f0a020;--off:#6f6f69;--acc:#5b9bff;--whi:#f2c94c;--mov:#7aa2d6}}
 *{box-sizing:border-box}
 body.inapp .webonly{display:none}
+body:not(.inapp) .apponly{display:none}
+.titrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 6px}.titrow h1{margin:0}
+.vtabs{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:none}
+.vtabs button{border:0;border-radius:0;margin:0;font-weight:600;background:var(--card)}
+.vtabs button+button{border-left:1px solid var(--line)}
+.vtabs button.on{background:var(--acc);color:#fff;cursor:default}
+.tbar{gap:8px}
+.tgrp{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;padding:3px 6px;border:1px solid var(--line);border-radius:9px}
+.tgrp>.gl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.altro{position:relative;display:inline-block}
+.altro>.menu{position:absolute;top:calc(100% + 4px);right:0;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:250px;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.altro>.menu[hidden]{display:none}
+.altro>.menu button{text-align:left}
+.altro>.menu .sep{border-top:1px solid var(--line);margin:2px 0}
 dialog.stdlg{max-width:min(1200px,96vw);width:96vw;max-height:92vh}
 .stdlg .sthead{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.stdlg .sthead h2{margin:0}.stdlg .grow{flex:1}
 .stdlg .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}.stdlg .seg button{border:0;border-radius:0}.stdlg .seg button.on{background:var(--acc);color:#fff}
@@ -249,7 +263,8 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
       <div id="vcal" hidden><span id="vcalmsg"></span><button class="sm" id="vcalskip">Non si vede</button><button class="sm" id="vcalback">Indietro</button><button class="sm pri" id="vcalok">Fine</button><button class="sm" id="vcalno">Annulla</button></div>
       <div id="vgrip" title="Trascina per ingrandire o ridurre il video (doppio clic: misura iniziale)"></div></div>
     <div id="side">
-      <h1>Revisione rally &mdash; <span id="vname"></span></h1>
+      <div class="titrow"><h1>Revisione rally &mdash; <span id="vname"></span></h1>
+        <span class="vtabs" title="Le viste della partita"><button class="on" tabindex="-1">Revisione clip</button><button id="gocine" title="Video grande con l'elenco delle clip a destra">Vista cinema</button><button id="gosv" title="Fai lo scout guardando il video: ogni tocco resta legato al suo istante">Scout nella pagina</button><button id="tomob" hidden title="Vista semplice per telefono e tablet">Vista telefono</button></span></div>
       <div class="row" id="vmsg" hidden><button class="pri" id="vpick">Scegli il video della partita&hellip;</button>
         <button class="pri" id="vstream" hidden>Guarda il video da OneDrive</button>
         <span class="mut">Dal web il video non si carica da solo: scegli <code>video/&hellip;mp4</code> oppure la copia ridotta
@@ -257,10 +272,10 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
       <div class="row">
         <label title="Con un filtro scout attivo si riproducono comunque solo le clip filtrate"><input type="checkbox" id="preview"> Anteprima senza tagli (salta i tempi morti)</label>
         <label>Velocit&agrave; <select id="rspeed"><option value="0.25">0,25x</option><option value="0.5">0,5x</option><option value="0.75">0,75x</option><option value="1" selected>1x</option><option value="1.5">1,5x</option><option value="2">2x</option></select></label>
-      </div>
-      <div class="row" id="zoomrow">Zoom video
+      <span id="zoomrow">&middot; Zoom video
         <button id="zout" title="Riduci">&minus;</button><button id="zin" title="Ingrandisci">+</button><button id="zreset" title="Immagine intera (Z)">1:1</button>
-        <span class="mut" id="zoomval"></span><span class="mut">rotella sul video, trascina per spostarti</span></div>
+        <span class="mut" id="zoomval"></span><span class="mut">rotella sul video, trascina per spostarti</span></span>
+      </div>
       <div class="row" id="stats"></div>
       <div class="row" id="thrrow">
         <label title="Linea tratteggiata arancione nel grafico del movimento. Sopra = gioco, sotto = campo fermo">Soglia di movimento
@@ -269,32 +284,33 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
         <button id="recalc" title="Ricalcola inizio e fine delle clip che non hai corretto a mano; le altre restano come sono">Ricalcola le clip non corrette</button>
         <span class="mut" id="thrinfo"></span>
       </div>
-      <div class="row">
-        <button id="appback" hidden title="Torna all'elenco delle partite">&larr; Partite</button>
-        <button class="pri" id="save" title="Salva il lavoro nel file .json della partita (Ctrl+S)">Salva</button>
-        <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
-        <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
-        <button id="tomob" hidden title="Vista semplice per telefono e tablet">Vista telefono</button>
-        <button id="odopen" title="Apri il .json di una partita condiviso su OneDrive, senza scaricarlo (il salvataggio poi va ricaricato a mano su OneDrive)">Apri da OneDrive&hellip;</button>
-        <button id="opendir" hidden title="Scegli la cartella della partita: carica il lavoro salvato e il video della sottocartella video">Apri cartella partita&hellip;</button>
-        <button id="seasonstat" title="Statistiche di tutte le partite della cartella della stagione (non serve aprire una partita)">Statistiche della stagione&hellip;</button>
-        <input type="file" id="jfile" accept=".json,application/json" hidden>
-        <button id="pick">Scegli il video&hellip;</button>
-        <button id="odlink" title="Collega il video condiviso su OneDrive: da fuori casa basta il .json, il video si guarda in streaming">Video su OneDrive&hellip;</button>
-        <input type="file" id="file" accept="video/*,.mp4,.m4v,.mov,.mkv,.webm,application/octet-stream" hidden>
-        <button id="reset" title="Torna alla proposta automatica">Ripristina originale</button>
-        <button id="compact" title="A revisione finita: crea un video con le sole clip tenute (piu' 2 s per lato) e il suo json, per occupare meno spazio">Compatta video&hellip;</button>
-        <button id="gocine" title="Video grande con l'elenco delle clip a destra">Vista cinema</button>
-        <button id="gosv" title="Fai lo scout guardando il video: ogni tocco resta legato al suo istante">Scout nella pagina</button>
-        <button id="fprev" title="Fotogramma precedente (virgola o Alt+freccia sinistra)">&#9664;|</button>
-        <button id="fnext" title="Fotogramma successivo (punto o Alt+freccia destra)">|&#9654;</button>
-        <button id="snap" title="Salva come immagine il fotogramma attuale del video (F)">Foto</button>
-        <button id="scout" title="Carica lo scout (file .xlsx esportato da Volleyball Scout) e controllalo">Carica scout&hellip;</button>
-        <button id="scoutd" title="Carica lo scout in formato DataVolley (file .dvw): ogni punto e' scritto in chiaro, con free ball e zone di battuta e attacco">Carica scout .dvw&hellip;</button>
-        <label id="suser" hidden title="La partita ha due scout: quello fatto nella pagina e quello importato da Volleyball Scout. Clip, filtri e tocchi seguono quello scelto; nessuno dei due viene modificato">Scout in uso
+      <div class="row tbar">
+        <span class="tgrp"><span class="gl webonly">File</span><span class="gl apponly">Partita</span>
+          <button id="appback" hidden title="Torna all'elenco delle partite">&larr; Partite</button>
+          <button class="pri" id="save" title="Salva il lavoro nel file .json della partita (Ctrl+S)">Salva</button>
+          <button id="saveas" title="Salva con un altro nome o in un'altra cartella">Salva come&hellip;</button>
+          <button id="open" title="Riprendi il lavoro da un file salvato">Apri&hellip;</button>
+          <button id="opendir" hidden title="Scegli la cartella della partita: carica il lavoro salvato e il video della sottocartella video">Apri cartella partita&hellip;</button>
+          <button id="odopen" title="Apri il .json di una partita condiviso su OneDrive, senza scaricarlo (il salvataggio poi va ricaricato a mano su OneDrive)">Apri da OneDrive&hellip;</button>
+          <input type="file" id="jfile" accept=".json,application/json" hidden></span>
+        <span class="tgrp" id="tgvid"><span class="gl">Video</span>
+          <button id="pick">Scegli il video&hellip;</button>
+          <button id="odlink" title="Collega il video condiviso su OneDrive: da fuori casa basta il .json, il video si guarda in streaming">Video su OneDrive&hellip;</button>
+          <input type="file" id="file" accept="video/*,.mp4,.m4v,.mov,.mkv,.webm,application/octet-stream" hidden>
+          <button id="fprev" title="Fotogramma precedente (virgola o Alt+freccia sinistra)">&#9664;|</button>
+          <button id="fnext" title="Fotogramma successivo (punto o Alt+freccia destra)">|&#9654;</button>
+          <button id="snap" title="Salva come immagine il fotogramma attuale del video (F)">Foto</button></span>
+        <span class="tgrp"><span class="gl">Scout</span>
+          <button id="scout" title="Carica lo scout (file .xlsx esportato da Volleyball Scout) e controllalo">Carica scout&hellip;</button>
+          <button id="scoutd" title="Carica lo scout in formato DataVolley (file .dvw): ogni punto e' scritto in chiaro, con free ball e zone di battuta e attacco">Carica scout .dvw&hellip;</button>
+          <label id="suser" hidden title="La partita ha due scout: quello fatto nella pagina e quello importato da Volleyball Scout. Clip, filtri e tocchi seguono quello scelto; nessuno dei due viene modificato">Scout in uso
           <select id="suse"><option value="live">fatto nella pagina</option><option value="imp">importato</option></select></label>
-        <input type="file" id="sfile" accept=".xlsx" hidden>
-        <input type="file" id="sfiled" accept=".dvw,text/plain,application/octet-stream" hidden>
+          <input type="file" id="sfile" accept=".xlsx" hidden>
+          <input type="file" id="sfiled" accept=".dvw,text/plain,application/octet-stream" hidden></span>
+        <span class="altro"><button id="altbtn" aria-haspopup="true" aria-expanded="false" title="Comandi usati di rado">Altro &#9662;</button>
+          <div class="menu" id="altmenu" hidden><button id="seasonstat" title="Statistiche di tutte le partite della cartella della stagione (non serve aprire una partita)">Statistiche della stagione&hellip;</button>
+          <button id="compact" title="A revisione finita: crea un video con le sole clip tenute (piu' 2 s per lato) e il suo json, per occupare meno spazio">Compatta video&hellip;</button>
+          <div class="sep" id="altsep"></div><button id="reset" title="Torna alla proposta automatica">Ripristina originale (annulla le correzioni)</button></div></span>
       </div>
       <div class="row mut" id="status"></div>
       <div class="row" id="appjobs" hidden></div>
@@ -383,7 +399,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
         <select id="cspeed"><option value="0.25">0,25x</option><option value="0.5">0,5x</option><option value="0.75">0,75x</option><option value="1" selected>1x</option><option value="1.5">1,5x</option><option value="2">2x</option></select>
         <label><input type="checkbox" id="cauto" checked> avanti automatico</label>
         <button id="cfs">Schermo intero</button>
-        <button id="cback">Torna alla revisione</button>
+        <span class="vtabs"><button id="cback" title="Torna alla revisione">Revisione clip</button><button class="on" tabindex="-1">Vista cinema</button><button id="c2sv">Scout nella pagina</button></span>
       </div>
       <div class="row tagrow" id="ctags" hidden></div>
     </div>
@@ -428,7 +444,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
         Video: <kbd>spazio</kbd> play/pausa &middot; frecce &plusmn;5 s (con <kbd>maiusc</kbd> &plusmn;1 s) &middot; <kbd>,</kbd> <kbd>.</kbd> fotogramma.
         Le lettere sono tutte a sinistra: la mano sinistra sceglie il fondamentale. Nella vista Scout <kbd>F</kbd> e <kbd>Z</kbd> non sono foto e zoom del video.</details>
       <span style="flex:1"></span>
-      <button id="svback">Torna alla revisione</button>
+      <span class="vtabs"><button id="svback" title="Torna alla revisione">Revisione clip</button><button id="sv2cine">Vista cinema</button><button class="on" tabindex="-1">Scout nella pagina</button></span>
     </div>
   </div>
   <aside id="svpanel">
@@ -2397,6 +2413,13 @@ function setCine(on) {
 }
 $("gocine").onclick = () => setCine(true);
 $("cback").onclick = () => setCine(false);
+$("c2sv").onclick = () => $("gosv").click();
+// menu «Altro»: comandi usati di rado; si chiude scegliendo, con un clic fuori o con Esc
+function altShow(on) { $("altmenu").hidden = !on; $("altbtn").setAttribute("aria-expanded", on ? "true" : "false"); }
+$("altbtn").onclick = e => { e.stopPropagation(); altShow($("altmenu").hidden); };
+$("altmenu").addEventListener("click", e => { if (e.target.closest("button")) altShow(false); });
+document.addEventListener("click", e => { if (!$("altmenu").hidden && !e.target.closest(".altro")) altShow(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("altmenu").hidden) { altShow(false); e.stopPropagation(); } }, true);
 $("cfilter").onchange = () => { if (sel && sel.tch !== undefined !== tchMode()) sel = null; renderCine(); };
 const twSet = () => {
   TW.pre = clamp(+$("ctpre").value || 0, 0, 20); TW.post = clamp(+$("ctpost").value || 0, 0, 20);
@@ -3148,6 +3171,8 @@ async function appStart() {
   if (appStarted || !APP()) return;
   appStarted = true;
   document.body.classList.add("inapp"); $("appback").hidden = false;
+  ["open", "opendir", "odopen", "pick", "odlink"].forEach(k => $("altmenu").insertBefore($(k), $("altsep")));
+  $("altmenu").insertBefore(Object.assign(document.createElement("div"), { className: "sep" }), $("open"));
   const q = new URLSearchParams(location.search), folder = q.get("partita");
   if (q.get("stagione")) { showStats("stagione"); stSeasonLoad(); return; }
   if (!folder) return;
@@ -4625,6 +4650,7 @@ function setSv(on) {
 }
 $("gosv").onclick = () => { if (!LIVE) openMatchDlg(true); else setSv(true); };
 $("svback").onclick = () => setSv(false);
+$("sv2cine").onclick = () => { setSv(false); setCine(true); };
 $("svplay").onclick = () => { v.paused ? v.play() : v.pause(); };
 $("svb1").onclick = () => seek(v.currentTime - 1);
 $("svf1").onclick = () => seek(v.currentTime + 1);
