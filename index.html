@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="vsv-versione" content="20261127-1920">
+<meta name="vsv-versione" content="20261128-0759">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideoScout Volley</title>
 <style>
@@ -297,6 +297,7 @@ body.mob > *:not(#mob):not(dialog){display:none!important}
         <input type="file" id="sfiled" accept=".dvw,text/plain,application/octet-stream" hidden>
       </div>
       <div class="row mut" id="status"></div>
+      <div class="row" id="appjobs" hidden></div>
       <details class="mut" id="help"><summary>Scorciatoie e aiuto</summary>
         <kbd>spazio</kbd> play/pausa &middot; <kbd>&larr;</kbd><kbd>&rarr;</kbd> &plusmn;5 s (con <kbd>maiusc</kbd> &plusmn;1 s) &middot;
         <kbd>N</kbd>/<kbd>P</kbd> rally successivo/precedente &middot; <kbd>X</kbd> tieni/scarta &middot; <kbd>S</kbd> aggiungi alla selezione per il minivideo &middot;
@@ -2577,7 +2578,7 @@ $("dmake").onclick = async () => {
     const r = await APP().run_minivideo(APP_MATCH.folder, APP_MATCH.compatto, name, mode,
       JSON.stringify({ meta: Object.assign({}, D.meta, { minivideo: name }), rallies: rs }));
     if (r && r.error) { alert(r.error); return; }
-    $("dlg").close(); alert("Minivideo avviato: l'avanzamento e' nella schermata delle partite. Il file comparira' in export/minivideo/" + name + "/.");
+    $("dlg").close(); appJobs(); alert("Minivideo avviato: l'avanzamento compare sotto i pulsanti e nella schermata delle partite. Il file comparira' in export/minivideo/" + name + "/.");
     return;
   }
   download(name + ".json", JSON.stringify({ meta: Object.assign({}, D.meta, { minivideo: name }), rallies: rs }, null, 2), "application/json");
@@ -2601,11 +2602,11 @@ $("compact").onclick = () => {
   if (!confirm("Video compatto: restano le " + k.length + " clip con Tieni (" + (tot / 60).toFixed(1) + " min su " + (DUR / 60).toFixed(1) +
     "), con 2 secondi prima e dopo ciascuna, a 8 Mbit/s." + NL + NL +
     "Da fare a revisione finita: nel video compatto le azioni scartate non ci sono piu' e le clip non si possono allargare oltre i 2 secondi." + NL + NL +
-    (APP() && APP_MATCH ? "La compattazione parte nell'app: l'avanzamento e' nella schermata delle partite." + NL :
+    (APP() && APP_MATCH ? "La compattazione parte nell'app: l'avanzamento compare qui sotto i pulsanti e nella schermata delle partite." + NL :
     "Scarico compatta.json e compatta.bat: mettili nella cartella della partita (o in export) e fai doppio clic su compatta.bat." + NL) +
     "Il video originale e il suo json non vengono toccati: il risultato va nella sottocartella compatto.")) return;
   if (APP() && APP_MATCH) {
-    APP().run_compact(APP_MATCH.folder, toJSON(loadedRev)).then(r => { if (r && r.error) alert(r.error); });
+    APP().run_compact(APP_MATCH.folder, toJSON(loadedRev)).then(r => { if (r && r.error) alert(r.error); else appJobs(); });
     return;
   }
   download("compatta.json", toJSON(loadedRev), "application/json");
@@ -3154,6 +3155,28 @@ async function appStart() {
   if (!o || o.error) { alert((o && o.error) || "Partita non trovata."); return; }
   if (loadText(o.json_text, o.json_name)) { APP_MATCH = { folder, compatto: !!o.compatto }; v.src = o.video_url; status(); }
 }
+// operazioni dell'app in corso (compattazione, minivideo, analisi): barra qui, oltre che nella schermata delle partite
+let appJobsT = null;
+async function appJobs() {
+  const el = $("appjobs"), A = APP();
+  if (!A || !A.jobs) return;
+  let js = [];
+  try { js = await A.jobs(); } catch (e) { return; }
+  const act = js.filter(j => j.state === "in corso" || j.state === "in coda");
+  const ended = js.filter(j => (j.state === "fatto" || j.state === "errore") && appJobs.seen[j.id] && Date.now() - appJobs.seen[j.id] < 15000);
+  act.forEach(j => { appJobs.seen[j.id] = Date.now(); });
+  const show = act.concat(ended);
+  el.hidden = !show.length;
+  el.innerHTML = show.map(j => { const pc = Math.round((j.fraction || 0) * 100);
+    return '<span><b>' + esc(j.label) + '</b> ' + esc(j.state) + (j.state === "in corso" ? " " + pc + "%" : "") + '</span>' +
+      '<span style="display:inline-block;width:160px;height:8px;border-radius:4px;background:var(--line);overflow:hidden;vertical-align:middle"><i style="display:block;height:100%;width:' +
+      (j.state === "fatto" ? 100 : pc) + '%;background:' + (j.state === "errore" ? "#d33" : j.state === "fatto" ? "var(--ok)" : "var(--acc)") + '"></i></span>' +
+      '<span class="mut" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw">' + esc(j.last_line || "") + "</span>"; }).join("<br>");
+  clearTimeout(appJobsT); appJobsT = setTimeout(appJobs, act.length ? 1000 : 4000);
+}
+appJobs.seen = {};
+window.addEventListener("pywebviewready", () => appJobs());
+setTimeout(() => appJobs(), 500);
 window.addEventListener("pywebviewready", appStart);
 setTimeout(appStart, 0);                                            // se l'app era gia' pronta l'evento e' gia' passato
 function loadText(text, name) {
